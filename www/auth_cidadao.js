@@ -141,7 +141,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           .select('*')
           .eq('nome_completo', nome)
           .eq('password', password)
-          .single();
+          .maybeSingle();
 
         if (error || !data) {
           errorDiv.textContent = 'Erro ao entrar: Nome ou senha incorretos.';
@@ -162,7 +162,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             password: password
           })
           .select()
-          .single();
+          .maybeSingle();
 
         if (error) {
           errorDiv.textContent = 'Erro ao cadastrar: ' + error.message;
