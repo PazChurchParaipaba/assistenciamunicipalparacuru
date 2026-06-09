@@ -4,7 +4,7 @@
     "type": "APK",
     "kind": "Directory"
   },
-  "applicationId": "br.gov.paraipaba.alerta",
+  "applicationId": "br.gov.paracuru.alerta",
   "variantName": "release",
   "elements": [
     {

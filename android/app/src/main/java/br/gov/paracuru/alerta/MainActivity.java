@@ -1,4 +1,4 @@
-package br.gov.paraipaba.alerta;
+package br.gov.paracuru.alerta;
 
 import com.getcapacitor.BridgeActivity;
 

@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (session) {
       authContainer.innerHTML = `
         <button id="btnMeusRelatos" style="background:none; border:none; color: var(--primary); cursor:pointer; font-weight:bold; margin-right: 15px;">Meus Relatos</button>
-        <span style="color: var(--text-muted); margin-right: 10px;">${session.whatsapp}</span>
+        <span style="color: var(--text-muted); margin-right: 10px;">${session.nome || session.whatsapp}</span>
         <button id="btnSairCidadao" style="background:none; border:none; color: var(--danger); cursor:pointer; font-weight:bold;">Sair</button>
       `;
       document.getElementById('btnSairCidadao').addEventListener('click', () => {
@@ -54,12 +54,12 @@ document.addEventListener('DOMContentLoaded', async () => {
           
           <div id="authModalError" style="background: rgba(239, 68, 68, 0.1); color: var(--danger); padding: 0.75rem; border-radius: 8px; margin-bottom: 1.5rem; font-size: 0.9rem; text-align: center; border: 1px solid rgba(239, 68, 68, 0.2); display: none;"></div>
 
-          <div id="groupNome" class="form-group" style="margin-bottom: 1.2rem; display: none; flex-direction: column;">
+          <div id="groupNome" class="form-group" style="margin-bottom: 1.2rem; display: flex; flex-direction: column;">
             <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">Nome Completo</label>
             <input type="text" id="authNome" placeholder="João da Silva" style="width: 100%; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; box-sizing: border-box; background: transparent; color: var(--text-main); font-size: 1rem; transition: border-color 0.3s;">
           </div>
           
-          <div class="form-group" style="margin-bottom: 1.2rem; display: flex; flex-direction: column;">
+          <div id="groupWhatsapp" class="form-group" style="margin-bottom: 1.2rem; display: none; flex-direction: column;">
             <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">WhatsApp</label>
             <input type="tel" id="authWhatsapp" placeholder="(85) 90000-0000" style="width: 100%; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; box-sizing: border-box; background: transparent; color: var(--text-main); font-size: 1rem; transition: border-color 0.3s;">
           </div>
@@ -94,6 +94,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const passInput = document.getElementById('authPassword');
     const errorDiv = document.getElementById('authModalError');
     const groupNome = document.getElementById('groupNome');
+    const groupWhatsapp = document.getElementById('groupWhatsapp');
     const btnSubmit = document.getElementById('btnSubmitAuth');
     const toggleLink = document.getElementById('toggleAuthMode');
     const title = document.getElementById('authModalTitle');
@@ -105,13 +106,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       errorDiv.style.display = 'none';
       
       if(isLoginMode) {
-        groupNome.style.display = 'none';
+        groupWhatsapp.style.display = 'none';
         title.textContent = 'Acesso Obrigatório';
         desc.textContent = 'Faça o login para enviar e acompanhar relatos.';
         btnSubmit.textContent = 'Entrar';
         toggleLink.textContent = 'Não tem conta? Cadastre-se';
       } else {
-        groupNome.style.display = 'flex';
+        groupWhatsapp.style.display = 'flex';
         title.textContent = 'Criar Conta';
         desc.textContent = 'Cadastre-se gratuitamente para ajudar sua cidade.';
         btnSubmit.textContent = 'Cadastrar';
@@ -125,7 +126,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const password = passInput.value.trim();
       const nome = nomeInput.value.trim();
 
-      if (!whatsapp || !password || (!isLoginMode && !nome)) {
+      if (!nome || !password || (!isLoginMode && !whatsapp)) {
         errorDiv.textContent = 'Erro: Preencha todos os campos obrigatórios.';
         errorDiv.style.display = 'block';
         return;
@@ -138,12 +139,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('whatsapp', whatsapp)
+          .eq('nome_completo', nome)
           .eq('password', password)
           .single();
 
         if (error || !data) {
-          errorDiv.textContent = 'Erro ao entrar: WhatsApp ou senha incorretos.';
+          errorDiv.textContent = 'Erro ao entrar: Nome ou senha incorretos.';
           errorDiv.style.display = 'block';
           btnSubmit.textContent = 'Entrar';
           btnSubmit.disabled = false;
