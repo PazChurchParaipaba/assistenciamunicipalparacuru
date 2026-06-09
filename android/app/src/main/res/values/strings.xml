@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">Paraipaba Alerta</string>
-    <string name="title_activity_main">Paraipaba Alerta</string>
-    <string name="package_name">br.gov.paraipaba.alerta</string>
-    <string name="custom_url_scheme">br.gov.paraipaba.alerta</string>
+    <string name="app_name">Paracuru Alerta</string>
+    <string name="title_activity_main">Paracuru Alerta</string>
+    <string name="package_name">br.gov.paracuru.alerta</string>
+    <string name="custom_url_scheme">br.gov.paracuru.alerta</string>
 </resources>

@@ -57,7 +57,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Init Map
   function initMap() {
-    dashboardMap = L.map('dashboardMap').setView([-3.4418, -39.1481], 13); // Paraipaba default
+    dashboardMap = L.map('dashboardMap').setView([-3.4143, -39.0304], 13); // Paracuru default
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap'
@@ -70,7 +70,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadDashboard() {
     const { data: allReports, error } = await supabase
-      .from('reports')
+      .from('reports_paracuru')
       .select('*')
       .order('created_at', { ascending: false });
 
@@ -307,7 +307,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const sessionObj = sessionData ? JSON.parse(sessionData) : null;
     const serverEmail = sessionObj ? sessionObj.email : 'Servidor Desconhecido';
     
-    const { data: currentReport } = await supabase.from('reports').select('action_history').eq('id', id).single();
+    const { data: currentReport } = await supabase.from('reports_paracuru').select('action_history').eq('id', id).single();
     
     let history = [];
     if (currentReport && currentReport.action_history) {
@@ -321,7 +321,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
 
     const { error } = await supabase
-      .from('reports')
+      .from('reports_paracuru')
       .update({ status: newStatus, action_history: history })
       .eq('id', id);
 
@@ -348,7 +348,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const secFilter = filterSecretaria.value;
       const statFilter = filterStatus.value;
       
-      const { data: allReports } = await supabase.from('reports').select('*').order('created_at', { ascending: false });
+      const { data: allReports } = await supabase.from('reports_paracuru').select('*').order('created_at', { ascending: false });
       if (!allReports) return;
 
       const filtered = allReports.filter(r => {
@@ -397,7 +397,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   btnClear.addEventListener('click', async () => {
     if(confirm('Isso apagará TODOS os dados do sistema. Tem certeza?')) {
       const { error } = await supabase
-        .from('reports')
+        .from('reports_paracuru')
         .delete()
         .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
       if (error) {
@@ -423,7 +423,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Realtime updates
   supabase
     .channel('public:reports')
-    .on('postgres_changes', { event: '*', schema: 'public', table: 'reports' }, payload => {
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'reports_paracuru' }, payload => {
       console.log('Change received!', payload);
       loadDashboard();
     })
@@ -440,3 +440,4 @@ document.addEventListener('DOMContentLoaded', async () => {
   initMap();
   setTimeout(loadDashboard, 100); // slight delay to ensure container width for charts
 });
+

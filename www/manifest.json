@@ -1,16 +1,17 @@
 {
-  "name": "Paraipaba Alerta",
-  "short_name": "Alerta",
-  "description": "Aplicativo para envio de relatos e problemas na cidade de Paraipaba.",
+  "name": "Paracuru Alerta",
+  "short_name": "Paracuru Alerta",
+  "description": "Aplicativo para envio de relatos e problemas na cidade de Paracuru.",
   "start_url": "./index.html",
   "display": "standalone",
   "background_color": "#ffffff",
   "theme_color": "#10b981",
   "icons": [
     {
-      "src": "Gemini_Generated_Image_myfvbdmyfvbdmyfv.png",
+      "src": "logo_paracuru.png",
       "sizes": "192x192 512x512",
       "type": "image/png"
     }
   ]
 }
+

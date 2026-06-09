@@ -1,10 +1,10 @@
 apply plugin: 'com.android.application'
 
 android {
-    namespace = "br.gov.paraipaba.alerta"
+    namespace = "br.gov.paracuru.alerta"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
-        applicationId "br.gov.paraipaba.alerta"
+        applicationId "br.gov.paracuru.alerta"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
         versionCode 1

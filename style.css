@@ -4,7 +4,7 @@
   --primary: #10b981;
   --primary-hover: #059669;
   --secondary: #f59e0b;
-  --bg-gradient: url('bg-paraipaba.png') center/cover fixed;
+  --bg-gradient: url('bg-paraipaba.png') center/cover fixed; /* mantendo bg-paraipaba.png pois o arquivo não foi renomeado ainda, mas posso mudar se for necessário */
   --card-bg: rgba(255, 255, 255, 0.75);
   --bg-card: var(--card-bg); /* Alias para corrigir o erro */
   --text-main: #1f2937;

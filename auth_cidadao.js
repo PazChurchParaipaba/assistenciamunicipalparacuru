@@ -10,7 +10,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (session) {
       authContainer.innerHTML = `
         <button id="btnMeusRelatos" style="background:none; border:none; color: var(--primary); cursor:pointer; font-weight:bold; margin-right: 15px;">Meus Relatos</button>
-        <span style="color: var(--text-muted); margin-right: 10px;">${session.email}</span>
+        <span style="color: var(--text-muted); margin-right: 10px;">${session.whatsapp}</span>
         <button id="btnSairCidadao" style="background:none; border:none; color: var(--danger); cursor:pointer; font-weight:bold;">Sair</button>
       `;
       document.getElementById('btnSairCidadao').addEventListener('click', () => {
@@ -60,8 +60,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           </div>
           
           <div class="form-group" style="margin-bottom: 1.2rem; display: flex; flex-direction: column;">
-            <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">E-mail</label>
-            <input type="email" id="authEmail" placeholder="joao@exemplo.com" style="width: 100%; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; box-sizing: border-box; background: transparent; color: var(--text-main); font-size: 1rem; transition: border-color 0.3s;">
+            <label style="display: block; margin-bottom: 0.5rem; font-size: 0.9rem; font-weight: 600; color: var(--text-main);">WhatsApp</label>
+            <input type="tel" id="authWhatsapp" placeholder="(85) 90000-0000" style="width: 100%; padding: 0.9rem 1rem; border: 1px solid var(--border-color); border-radius: 12px; box-sizing: border-box; background: transparent; color: var(--text-main); font-size: 1rem; transition: border-color 0.3s;">
           </div>
 
           <div class="form-group" style="margin-bottom: 2rem; display: flex; flex-direction: column;">
@@ -90,7 +90,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     let isLoginMode = true;
     const nomeInput = document.getElementById('authNome');
-    const emailInput = document.getElementById('authEmail');
+    const whatsappInput = document.getElementById('authWhatsapp');
     const passInput = document.getElementById('authPassword');
     const errorDiv = document.getElementById('authModalError');
     const groupNome = document.getElementById('groupNome');
@@ -121,11 +121,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     btnSubmit.addEventListener('click', async () => {
       errorDiv.style.display = 'none';
-      const email = emailInput.value.trim();
+      const whatsapp = whatsappInput.value.trim();
       const password = passInput.value.trim();
       const nome = nomeInput.value.trim();
 
-      if (!email || !password || (!isLoginMode && !nome)) {
+      if (!whatsapp || !password || (!isLoginMode && !nome)) {
         errorDiv.textContent = 'Erro: Preencha todos os campos obrigatórios.';
         errorDiv.style.display = 'block';
         return;
@@ -138,17 +138,17 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('email', email)
+          .eq('whatsapp', whatsapp)
           .eq('password', password)
           .single();
 
         if (error || !data) {
-          errorDiv.textContent = 'Erro ao entrar: E-mail ou senha incorretos.';
+          errorDiv.textContent = 'Erro ao entrar: WhatsApp ou senha incorretos.';
           errorDiv.style.display = 'block';
           btnSubmit.textContent = 'Entrar';
           btnSubmit.disabled = false;
         } else {
-          localStorage.setItem('cidadaoSession', JSON.stringify({ id: data.id, email: data.email, nome: data.nome_completo }));
+          localStorage.setItem('cidadaoSession', JSON.stringify({ id: data.id, whatsapp: data.whatsapp, nome: data.nome_completo }));
           closeModal();
           renderAuthStatus();
         }
@@ -157,7 +157,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           .from('profiles')
           .insert({
             nome_completo: nome,
-            email: email,
+            whatsapp: whatsapp,
             password: password
           })
           .select()
@@ -169,7 +169,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           btnSubmit.textContent = 'Cadastrar';
           btnSubmit.disabled = false;
         } else {
-          localStorage.setItem('cidadaoSession', JSON.stringify({ id: data.id, email: data.email, nome: data.nome_completo }));
+          localStorage.setItem('cidadaoSession', JSON.stringify({ id: data.id, whatsapp: data.whatsapp, nome: data.nome_completo }));
           alert('Cadastro realizado! Bem-vindo(a).');
           closeModal();
           renderAuthStatus();
@@ -196,7 +196,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('closeRelatosModal').addEventListener('click', closeModal);
 
     const { data: reports, error } = await supabase
-      .from('reports')
+      .from('reports_paracuru')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
@@ -238,3 +238,4 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   renderAuthStatus();
 });
+

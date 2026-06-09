@@ -116,8 +116,10 @@ document.addEventListener('DOMContentLoaded', () => {
   });
 
   // Leaflet Map Initialization
-  // Default to Paraipaba Coordinates (approximate center)
-  let markerLocation = { lat: -3.4418, lng: -39.1481 }; 
+  // Default to Paracuru Coordinates (approximate center)
+  let initialLat = -3.4143;
+  let initialLng = -39.0304;
+  let markerLocation = { lat: initialLat, lng: initialLng }; 
   
   const map = L.map('map').setView([markerLocation.lat, markerLocation.lng], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -264,7 +266,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       // 5. Inserir os dados no banco usando a URL pública
       const { error } = await supabase
-        .from('reports')
+        .from('reports_paracuru')
         .insert([
           {
             title: document.getElementById('title').value,
@@ -281,7 +283,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
       if (error) throw error;
 
-      const whatsText = encodeURIComponent(`Acabei de reportar um problema: *${document.getElementById('title').value}* pelo Paraipaba Alerta! Faça sua parte também.`);
+      const whatsText = encodeURIComponent(`Acabei de reportar um problema: *${document.getElementById('title').value}* pelo Paracuru Alerta! Faça sua parte também.`);
       
       form.innerHTML = `
         <div style="text-align: center; padding: 2rem;">
@@ -319,7 +321,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         const { data: { publicUrl } } = supabase.storage.from('relatos-fotos').getPublicUrl(fileName);
         
-        await supabase.from('reports').insert([{
+        await supabase.from('reports_paracuru').insert([{
           title: item.title,
           secretaria: item.secretaria,
           description: item.description,
@@ -346,3 +348,4 @@ document.addEventListener('DOMContentLoaded', () => {
       .catch(err => console.log('SW erro', err));
   }
 });
+
