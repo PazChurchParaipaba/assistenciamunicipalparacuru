@@ -4,7 +4,7 @@
   --primary: #10b981;
   --primary-hover: #059669;
   --secondary: #f59e0b;
-  --bg-gradient: url('bg-paraipaba.png') center/cover fixed; /* mantendo bg-paraipaba.png pois o arquivo não foi renomeado ainda, mas posso mudar se for necessário */
+  --bg-gradient: url('bg-paracuru.png') center/cover fixed; 
   --card-bg: rgba(255, 255, 255, 0.75);
   --bg-card: var(--card-bg); /* Alias para corrigir o erro */
   --text-main: #1f2937;
@@ -21,7 +21,7 @@
   --primary: #34d399;
   --primary-hover: #10b981;
   --secondary: #fbbf24;
-  --bg-gradient: linear-gradient(rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8)), url('bg-paraipaba.png') center/cover fixed;
+  --bg-gradient: linear-gradient(rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8)), url('bg-paracuru.png') center/cover fixed;
   --card-bg: rgba(30, 41, 59, 0.75);
   --bg-card: var(--card-bg);
   --text-main: #f8fafc;
