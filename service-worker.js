@@ -1,4 +1,4 @@
-const CACHE_NAME = 'paracuru-alerta-v8';
+const CACHE_NAME = 'paracuru-alerta-v9';
 const urlsToCache = [
   './',
   './index.html',

@@ -307,6 +307,8 @@ document.addEventListener('DOMContentLoaded', () => {
             location_lng: markerLocation.lng,
             status: 'Aberto',
             user_id: userId,
+            endereco: document.getElementById('endereco').value.trim() || null,
+            bairro: document.getElementById('bairro').value.trim() || null,
             subcategory: document.getElementById('subcategory').value || null
           }
         ]);
