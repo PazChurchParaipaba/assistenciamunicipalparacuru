@@ -97,6 +97,13 @@ document.addEventListener('DOMContentLoaded', () => {
           alert('Preencha os campos obrigatórios primeiro.');
           return;
         }
+      } else if (currentStep === 2) {
+        const endereco = document.getElementById('endereco').value.trim();
+        const bairro = document.getElementById('bairro').value.trim();
+        if (!endereco || !bairro) {
+          alert('Por favor, preencha a Rua e o Bairro para a prefeitura encontrar o local!');
+          return;
+        }
       }
       
       if (currentStep < totalSteps) {
