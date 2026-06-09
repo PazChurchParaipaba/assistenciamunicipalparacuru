@@ -141,15 +141,16 @@ document.addEventListener('DOMContentLoaded', async () => {
           .select('*')
           .ilike('nome_completo', nome)
           .eq('password', password)
-          .maybeSingle();
+          .limit(1);
 
-        if (error || !data) {
+        if (error || !data || data.length === 0) {
           errorDiv.textContent = 'Erro ao entrar: Nome ou senha incorretos.';
           errorDiv.style.display = 'block';
           btnSubmit.textContent = 'Entrar';
           btnSubmit.disabled = false;
         } else {
-          localStorage.setItem('cidadaoSession', JSON.stringify({ id: data.id, whatsapp: data.whatsapp, nome: data.nome_completo }));
+          const user = data[0];
+          localStorage.setItem('cidadaoSession', JSON.stringify({ id: user.id, whatsapp: user.whatsapp, nome: user.nome_completo }));
           closeModal();
           renderAuthStatus();
         }
