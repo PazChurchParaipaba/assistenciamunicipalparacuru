@@ -139,7 +139,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
-          .eq('nome_completo', nome)
+          .ilike('nome_completo', nome)
           .eq('password', password)
           .maybeSingle();
 
