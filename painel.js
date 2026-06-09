@@ -80,14 +80,33 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     
+    // Populate Bairro filter with unique values
+    const uniqueBairros = [...new Set(allReports.filter(r => r.bairro).map(r => r.bairro.trim()))].sort();
+    const currentBairroFilter = filterBairro.value;
+    
+    filterBairro.innerHTML = '<option value="Todos">Todos os Bairros</option>';
+    uniqueBairros.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      filterBairro.appendChild(opt);
+    });
+    
+    // Restore previous selection if it still exists
+    if (currentBairroFilter && currentBairroFilter !== 'Todos' && uniqueBairros.includes(currentBairroFilter)) {
+      filterBairro.value = currentBairroFilter;
+    } else {
+      filterBairro.value = 'Todos';
+    }
+
     const secFilter = filterSecretaria.value;
     const statFilter = filterStatus.value;
-    const bairroFilter = filterBairro.value.toLowerCase().trim();
+    const bairroFilter = filterBairro.value;
     
     const reports = allReports.filter(r => {
       const matchSec = secFilter === 'Todas' || r.secretaria === secFilter;
       const matchStat = statFilter === 'Todos' || r.status === statFilter;
-      const matchBairro = !bairroFilter || (r.bairro && r.bairro.toLowerCase().includes(bairroFilter));
+      const matchBairro = bairroFilter === 'Todos' || (r.bairro && r.bairro.trim() === bairroFilter);
       return matchSec && matchStat && matchBairro;
     });
 
@@ -343,10 +362,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Filters Event Listeners
   filterSecretaria.addEventListener('change', loadDashboard);
   filterStatus.addEventListener('change', loadDashboard);
-  filterBairro.addEventListener('input', () => {
-    // debounce opcional ou chamar direto
-    loadDashboard();
-  });
+  filterBairro.addEventListener('change', loadDashboard);
 
   // Export CSV
   const btnExportCSV = document.getElementById('btnExportCSV');
