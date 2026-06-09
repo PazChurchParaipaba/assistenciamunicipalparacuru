@@ -90,6 +90,7 @@
         <option value="Em Andamento">Em Andamento</option>
         <option value="Resolvido">Resolvido</option>
       </select>
+      <input type="text" id="filterBairro" placeholder="Filtrar por Bairro" style="max-width: 200px; padding: 1rem; border: 1px solid var(--border-color); border-radius: 12px; font-size: 1rem; background: transparent; color: var(--text-main);">
       <button id="btnExportCSV" class="btn btn-primary" style="width: auto; background: var(--secondary); border-color: var(--secondary);">Exportar CSV</button>
       <button id="btnClear" class="btn btn-secondary" style="width: auto;">Esvaziar Dados</button>
     </div>
@@ -114,8 +115,9 @@
       <h4 style="margin-bottom: 0.5rem; color: var(--text);">Descrição:</h4>
       <p id="modalDescription" style="margin-bottom: 1.5rem; line-height: 1.5; color: var(--text);"></p>
       
-      <h4 style="margin-bottom: 0.5rem; color: var(--text);">Localização (Lat, Lng):</h4>
-      <p id="modalLocation" style="color: var(--text-muted); font-family: monospace; margin-bottom: 1.5rem;"></p>
+      <h4 style="margin-bottom: 0.5rem; color: var(--text);">Localização:</h4>
+      <p id="modalLocationText" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0.5rem;"></p>
+      <p id="modalLocation" style="color: var(--text-muted); font-family: monospace; margin-bottom: 1.5rem; font-size: 0.8rem;"></p>
       
       <h4 style="margin-bottom: 0.5rem; color: var(--text); border-top: 1px solid var(--border); padding-top: 1rem;">Histórico de Ações:</h4>
       <ul id="modalHistory" style="color: var(--text-muted); font-size: 0.85rem; padding-left: 1.2rem; line-height: 1.4;"></ul>

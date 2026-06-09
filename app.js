@@ -129,9 +129,28 @@ document.addEventListener('DOMContentLoaded', () => {
 
   const marker = L.marker([markerLocation.lat, markerLocation.lng], { draggable: true }).addTo(map);
 
+  async function fetchAddress(lat, lng) {
+    try {
+      const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`);
+      if (res.ok) {
+        const data = await res.json();
+        const address = data.address || {};
+        
+        const street = address.road || address.pedestrian || address.path || address.street || '';
+        const suburb = address.suburb || address.neighbourhood || address.city_district || address.village || address.town || '';
+        
+        if (street) document.getElementById('endereco').value = street;
+        if (suburb) document.getElementById('bairro').value = suburb;
+      }
+    } catch(e) {
+      console.log('Reverse geocoding falhou', e);
+    }
+  }
+
   marker.on('dragend', function (e) {
     const position = marker.getLatLng();
     markerLocation = { lat: position.lat, lng: position.lng };
+    fetchAddress(position.lat, position.lng);
   });
 
   // GPS Location
@@ -147,6 +166,8 @@ document.addEventListener('DOMContentLoaded', () => {
           };
           map.setView([markerLocation.lat, markerLocation.lng], 16);
           marker.setLatLng([markerLocation.lat, markerLocation.lng]);
+          fetchAddress(markerLocation.lat, markerLocation.lng);
+          
           btnMyLocation.textContent = '✅ GPS Capturado';
           btnMyLocation.style.background = 'var(--secondary)';
           btnMyLocation.style.borderColor = 'var(--secondary)';
@@ -228,6 +249,8 @@ document.addEventListener('DOMContentLoaded', () => {
           photoBase64: currentPhotoData,
           location_lat: markerLocation.lat,
           location_lng: markerLocation.lng,
+          endereco: document.getElementById('endereco').value.trim() || null,
+          bairro: document.getElementById('bairro').value.trim() || null,
           subcategory: document.getElementById('subcategory').value || null
         };
         const queue = JSON.parse(localStorage.getItem('offlineQueue') || '[]');

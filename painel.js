@@ -39,6 +39,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const reportsGrid = document.getElementById('reportsGrid');
   const filterSecretaria = document.getElementById('filterSecretaria');
   const filterStatus = document.getElementById('filterStatus');
+  const filterBairro = document.getElementById('filterBairro');
   const btnClear = document.getElementById('btnClear');
 
   // Restringe a visualização à secretaria do servidor (se não for Admin Geral / "Todas")
@@ -81,11 +82,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     const secFilter = filterSecretaria.value;
     const statFilter = filterStatus.value;
+    const bairroFilter = filterBairro.value.toLowerCase().trim();
     
     const reports = allReports.filter(r => {
       const matchSec = secFilter === 'Todas' || r.secretaria === secFilter;
       const matchStat = statFilter === 'Todos' || r.status === statFilter;
-      return matchSec && matchStat;
+      const matchBairro = !bairroFilter || (r.bairro && r.bairro.toLowerCase().includes(bairroFilter));
+      return matchSec && matchStat && matchBairro;
     });
 
     latestReports = reports;
@@ -227,6 +230,9 @@ document.addEventListener('DOMContentLoaded', async () => {
           <span class="status-badge ${statusClass}">${report.status}</span>
           <span style="font-size: 0.8rem; color: var(--text-muted); float: right">${date}</span>
           <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${report.title}</h3>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 500;">
+            📍 ${report.endereco || 'Endereço não informado'} ${report.bairro ? ' - ' + report.bairro : ''}
+          </p>
           <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
             <b>${report.secretaria}</b> ${report.subcategory ? `> ${report.subcategory}` : ''}<br>
             ${report.description}
@@ -286,7 +292,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('modalPhoto').src = report.photo;
     document.getElementById('modalDescription').textContent = report.description;
-    document.getElementById('modalLocation').textContent = `Lat: ${report.location_lat.toFixed(5)}, Lng: ${report.location_lng.toFixed(5)}`;
+    document.getElementById('modalLocationText').textContent = `${report.endereco || 'Rua não informada'}, ${report.bairro || 'Bairro não informado'}`;
+    document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
     
     const historyList = document.getElementById('modalHistory');
     historyList.innerHTML = '';
@@ -334,10 +341,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Filters Event Listeners
-  filterSecretaria.addEventListener('change', () => {
-    loadDashboard();
-  });
-  filterStatus.addEventListener('change', () => {
+  filterSecretaria.addEventListener('change', loadDashboard);
+  filterStatus.addEventListener('change', loadDashboard);
+  filterBairro.addEventListener('input', () => {
+    // debounce opcional ou chamar direto
     loadDashboard();
   });
 
@@ -362,7 +369,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      const headers = ['ID', 'Data', 'Titulo', 'Secretaria', 'Subcategoria', 'Status', 'Descricao', 'Lat', 'Lng'];
+      const headers = ['ID', 'Data', 'Titulo', 'Secretaria', 'Subcategoria', 'Status', 'Descricao', 'Rua', 'Bairro', 'Lat', 'Lng'];
       const csvRows = [headers.join(',')];
 
       filtered.forEach(r => {
@@ -374,6 +381,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           `"${r.subcategory || ''}"`,
           `"${r.status}"`,
           `"${r.description.replace(/"/g, '""')}"`,
+          `"${(r.endereco || '').replace(/"/g, '""')}"`,
+          `"${(r.bairro || '').replace(/"/g, '""')}"`,
           r.location_lat,
           r.location_lng
         ];

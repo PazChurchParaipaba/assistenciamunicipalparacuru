@@ -81,7 +81,13 @@
             Arraste o mapa para colocar o pino no local exato.
           </p>
           <div id="map"></div>
-          <button type="button" id="btnMyLocation" class="btn btn-secondary">📍 Usar Minha Localização GPS</button>
+          <button type="button" id="btnMyLocation" class="btn btn-secondary" style="margin-bottom: 1rem;">📍 Usar Minha Localização GPS</button>
+          
+          <label for="endereco" style="margin-top: 1rem;">Endereço (Rua/Avenida)</label>
+          <input type="text" id="endereco" placeholder="Ex: Rua João Paulo II" style="margin-bottom: 1rem;" required>
+
+          <label for="bairro">Bairro / Localidade</label>
+          <input type="text" id="bairro" placeholder="Ex: Centro" required>
         </div>
 
         <div class="btn-group">
