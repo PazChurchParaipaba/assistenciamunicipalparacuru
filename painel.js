@@ -55,6 +55,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let heatmapLayer = null;
   let isHeatmapActive = false;
   let latestReports = [];
+  let currentReportId = null;
+  let responsaveisList = [];
 
   // Init Map
   function initMap() {
@@ -297,6 +299,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function showDetailsModal(report) {
+    currentReportId = report.id;
     document.getElementById('modalTitle').textContent = report.title;
     
     const statusEl = document.getElementById('modalStatus');
@@ -314,6 +317,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('modalLocationText').textContent = `${report.endereco || 'Rua não informada'}, ${report.bairro || 'Bairro não informado'}`;
     document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
     
+    document.getElementById('modalResponsavel').value = report.responsavel || '';
+    document.getElementById('modalNotas').value = report.notas_internas || '';
+    
+    if (typeof window.renderChat === 'function') {
+      window.renderChat(report.chat_history || []);
+    }
+    
     const historyList = document.getElementById('modalHistory');
     historyList.innerHTML = '';
     if (report.action_history && report.action_history.length > 0) {
@@ -326,6 +336,195 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     detailsModal.style.display = 'flex';
+  }
+
+  // Manage Responsavel Logic
+  const responsavelModal = document.getElementById('responsavelModal');
+  const btnManageResponsavel = document.getElementById('btnManageResponsavel');
+  const closeResponsavelModal = document.getElementById('closeResponsavelModal');
+  const btnAddResponsavel = document.getElementById('btnAddResponsavel');
+  const newResponsavelName = document.getElementById('newResponsavelName');
+  const responsavelListEl = document.getElementById('responsavelList');
+  const modalResponsavelSelect = document.getElementById('modalResponsavel');
+
+  if (btnManageResponsavel) {
+    btnManageResponsavel.addEventListener('click', () => {
+      responsavelModal.style.display = 'flex';
+      loadResponsaveis();
+    });
+  }
+
+  if (closeResponsavelModal) {
+    closeResponsavelModal.addEventListener('click', () => {
+      responsavelModal.style.display = 'none';
+      loadResponsaveisForSelect();
+    });
+  }
+
+  async function loadResponsaveis() {
+    let query = supabase.from('responsaveis').select('*').order('nome');
+    if (session.secretaria !== 'Todas') {
+      query = query.eq('secretaria', session.secretaria);
+    }
+    const { data, error } = await query;
+    
+    responsavelListEl.innerHTML = '';
+    if (error) {
+      console.error('Erro ao carregar responsáveis', error);
+      return;
+    }
+    responsaveisList = data || [];
+    
+    responsaveisList.forEach(resp => {
+      const li = document.createElement('li');
+      li.style.padding = '0.5rem';
+      li.style.borderBottom = '1px solid var(--border)';
+      li.style.display = 'flex';
+      li.style.justifyContent = 'space-between';
+      li.innerHTML = `<span>${resp.nome} <small style="color: var(--text-muted)">(${resp.secretaria})</small></span>
+                      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; width: auto; font-size: 0.8rem;" onclick="deleteResponsavel('${resp.id}')">Excluir</button>`;
+      responsavelListEl.appendChild(li);
+    });
+    loadResponsaveisForSelect();
+  }
+
+  async function loadResponsaveisForSelect() {
+    if (!modalResponsavelSelect) return;
+    let query = supabase.from('responsaveis').select('*').order('nome');
+    if (session.secretaria !== 'Todas') {
+      query = query.eq('secretaria', session.secretaria);
+    }
+    const { data } = await query;
+    responsaveisList = data || [];
+    
+    const currentVal = modalResponsavelSelect.value;
+    modalResponsavelSelect.innerHTML = '<option value="">Não atribuído</option>';
+    responsaveisList.forEach(resp => {
+      const opt = document.createElement('option');
+      opt.value = resp.nome;
+      opt.textContent = `${resp.nome} (${resp.secretaria})`;
+      modalResponsavelSelect.appendChild(opt);
+    });
+    modalResponsavelSelect.value = currentVal;
+  }
+
+  if (btnAddResponsavel) {
+    btnAddResponsavel.addEventListener('click', async () => {
+      const nome = newResponsavelName.value.trim();
+      if (!nome) return;
+      const secretaria = session.secretaria === 'Todas' ? prompt('Digite a Secretaria para este responsável:') : session.secretaria;
+      if (!secretaria) return;
+
+      const { error } = await supabase.from('responsaveis').insert([{ nome, secretaria }]);
+      if (error) {
+         alert('Erro ao adicionar responsável (a tabela existe?)');
+         console.error(error);
+      } else {
+         newResponsavelName.value = '';
+         loadResponsaveis();
+      }
+    });
+  }
+
+  window.deleteResponsavel = async function(id) {
+    if(confirm('Excluir este responsável?')) {
+      await supabase.from('responsaveis').delete().eq('id', id);
+      loadResponsaveis();
+    }
+  };
+
+  loadResponsaveisForSelect();
+
+  // Salvar Detalhes Internos
+  const btnSaveDetails = document.getElementById('btnSaveDetails');
+  if (btnSaveDetails) {
+    btnSaveDetails.addEventListener('click', async () => {
+      if (!currentReportId) return;
+      
+      const responsavel = document.getElementById('modalResponsavel').value;
+      const notas_internas = document.getElementById('modalNotas').value;
+
+      const { error } = await supabase
+        .from('reports_paracuru')
+        .update({ responsavel, notas_internas })
+        .eq('id', currentReportId);
+
+      if (error) {
+        alert('Erro ao salvar detalhes internos.');
+      } else {
+        alert('Salvo com sucesso!');
+        // Update local data
+        const report = latestReports.find(r => r.id === currentReportId);
+        if (report) {
+          report.responsavel = responsavel;
+          report.notas_internas = notas_internas;
+        }
+      }
+    });
+  }
+
+  // Lógica do Chat
+  const btnSendChat = document.getElementById('btnSendChat');
+  const chatInput = document.getElementById('chatInput');
+
+  window.renderChat = function(chatArray) {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    chatContainer.innerHTML = '';
+    if (!chatArray || chatArray.length === 0) {
+      chatContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">Nenhuma mensagem ainda. Inicie a conversa!</p>';
+      return;
+    }
+
+    chatArray.forEach(msg => {
+      const isServidor = msg.sender === 'secretaria';
+      const align = isServidor ? 'flex-end' : 'flex-start';
+      const bg = isServidor ? 'var(--primary)' : 'var(--bg-card)';
+      const color = isServidor ? '#fff' : 'var(--text)';
+      const border = isServidor ? 'none' : '1px solid var(--border)';
+      
+      const d = new Date(msg.date).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+
+      chatContainer.innerHTML += `
+        <div style="align-self: ${align}; background: ${bg}; color: ${color}; border: ${border}; padding: 0.5rem 1rem; border-radius: 8px; max-width: 80%;">
+          <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.2rem;">${isServidor ? 'Secretaria' : 'Cidadão'} • ${d}</div>
+          <div>${msg.text}</div>
+        </div>
+      `;
+    });
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  if (btnSendChat) {
+    btnSendChat.addEventListener('click', async () => {
+      const text = chatInput.value.trim();
+      if (!text || !currentReportId) return;
+      
+      const report = latestReports.find(r => r.id === currentReportId);
+      if (!report) return;
+
+      const newMsg = {
+        sender: 'secretaria',
+        text: text,
+        date: new Date().toISOString()
+      };
+
+      const chatHistory = report.chat_history || [];
+      chatHistory.push(newMsg);
+
+      const { error } = await supabase
+        .from('reports_paracuru')
+        .update({ chat_history: chatHistory })
+        .eq('id', currentReportId);
+
+      if (error) {
+        alert('Erro ao enviar mensagem.');
+      } else {
+        chatInput.value = '';
+        window.renderChat(chatHistory);
+        report.chat_history = chatHistory; // update locally
+      }
+    });
   }
 
   async function updateStatus(id, newStatus) {

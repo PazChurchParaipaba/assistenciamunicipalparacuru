@@ -93,6 +93,7 @@
       <select id="filterBairro" style="max-width: 200px;">
         <option value="Todos">Todos os Bairros</option>
       </select>
+      <button id="btnManageResponsavel" class="btn btn-secondary" style="width: auto;">Gerenciar Responsáveis</button>
       <button id="btnExportCSV" class="btn btn-primary" style="width: auto; background: var(--secondary); border-color: var(--secondary);">Exportar CSV</button>
       <button id="btnClear" class="btn btn-secondary" style="width: auto;">Esvaziar Dados</button>
     </div>
@@ -121,8 +122,48 @@
       <p id="modalLocationText" style="color: var(--text-muted); font-size: 0.95rem; margin-bottom: 0.5rem;"></p>
       <p id="modalLocation" style="color: var(--text-muted); font-family: monospace; margin-bottom: 1.5rem; font-size: 0.8rem;"></p>
       
+      <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1rem;">
+        <label for="modalResponsavel" style="display: block; font-weight: bold; margin-bottom: 0.5rem; color: var(--text);">Responsável:</label>
+        <select id="modalResponsavel" style="width: 100%; margin-bottom: 1rem;">
+           <option value="">Não atribuído</option>
+        </select>
+        
+        <label for="modalNotas" style="display: block; font-weight: bold; margin-bottom: 0.5rem; color: var(--text);">Notas Internas (Apenas Equipe):</label>
+        <textarea id="modalNotas" style="width: 100%; height: 80px; margin-bottom: 1rem; resize: vertical;"></textarea>
+        
+        <button id="btnSaveDetails" class="btn btn-primary" style="width: 100%; margin-bottom: 1.5rem;">Salvar Detalhes Internos</button>
+      </div>
+
+      <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1.5rem;">
+        <h4 style="margin-bottom: 1rem; color: var(--text);">Chat Cidadão x Secretaria</h4>
+        <div id="chatContainer" style="background: var(--bg-main); border: 1px solid var(--border); border-radius: 8px; height: 250px; overflow-y: auto; padding: 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem;">
+           <!-- Messages will be rendered here -->
+        </div>
+        <div style="display: flex; gap: 0.5rem;">
+           <input type="text" id="chatInput" placeholder="Digite uma mensagem..." style="flex: 1; margin: 0;">
+           <button id="btnSendChat" class="btn btn-secondary" style="width: auto;">Enviar</button>
+        </div>
+      </div>
+
       <h4 style="margin-bottom: 0.5rem; color: var(--text); border-top: 1px solid var(--border); padding-top: 1rem;">Histórico de Ações:</h4>
       <ul id="modalHistory" style="color: var(--text-muted); font-size: 0.85rem; padding-left: 1.2rem; line-height: 1.4;"></ul>
+    </div>
+  </div>
+
+  <!-- Manage Responsavel Modal -->
+  <div id="responsavelModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1001; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; position: relative;">
+      <button id="closeResponsavelModal" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+      <h2 style="margin-bottom: 1.5rem; color: var(--text);">Gerenciar Responsáveis</h2>
+      
+      <div style="display: flex; gap: 0.5rem; margin-bottom: 1rem;">
+        <input type="text" id="newResponsavelName" placeholder="Nome do novo responsável..." style="flex: 1; margin: 0;">
+        <button id="btnAddResponsavel" class="btn btn-primary" style="width: auto;">Adicionar</button>
+      </div>
+
+      <ul id="responsavelList" style="list-style: none; padding: 0; margin: 0;">
+        <!-- List will be populated here -->
+      </ul>
     </div>
   </div>
 
