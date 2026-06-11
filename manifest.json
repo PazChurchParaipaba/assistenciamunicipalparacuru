@@ -1,6 +1,6 @@
 {
-  "name": "Paracuru Alerta",
-  "short_name": "Paracuru Alerta",
+  "name": "SEGOV PARACURU",
+  "short_name": "SEGOV PARACURU",
   "description": "Aplicativo para envio de relatos e problemas na cidade de Paracuru.",
   "start_url": "./index.html",
   "display": "standalone",

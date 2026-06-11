@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard Admin - Paracuru Alerta</title>
+  <title>Dashboard Admin - SEGOV PARACURU</title>
   
   <link rel="icon" href="logo_paracuru.png" type="image/png">
   <link rel="manifest" href="manifest.json">
@@ -16,7 +16,7 @@
 
   <div class="container dashboard-container">
     <header>
-      <img src="logo_paracuru.png" alt="Paracuru Alerta" class="app-logo">
+      <img src="logo_paracuru.png" alt="SEGOV PARACURU" class="app-logo">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1>Centro de Controle Operacional</h1>
         <button id="btnLogout" class="btn btn-secondary" style="width: auto; padding: 0.5rem 1rem;">Sair</button>
@@ -72,6 +72,13 @@
     <!-- Filters & List -->
     <h2 style="margin-bottom: 1rem;">Gestão de Chamados</h2>
     <div class="filters">
+      <select id="filterTipo" style="max-width: 200px;">
+        <option value="Todos">Todos os Tipos</option>
+        <option value="Problema">Problemas</option>
+        <option value="Duvida">Dúvidas</option>
+        <option value="Feedback">Feedbacks</option>
+        <option value="Ouvidoria">Ouvidoria</option>
+      </select>
       <select id="filterSecretaria" style="max-width: 250px;">
         <option value="Todas">Todas as Secretarias</option>
         <option value="Infraestrutura">Infraestrutura</option>

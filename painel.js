@@ -38,6 +38,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const reportsGrid = document.getElementById('reportsGrid');
   const filterSecretaria = document.getElementById('filterSecretaria');
+  const filterTipo = document.getElementById('filterTipo');
   const filterStatus = document.getElementById('filterStatus');
   const filterBairro = document.getElementById('filterBairro');
   const btnClear = document.getElementById('btnClear');
@@ -104,12 +105,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const secFilter = filterSecretaria.value;
     const statFilter = filterStatus.value;
     const bairroFilter = filterBairro.value;
+    const tipoFilter = filterTipo ? filterTipo.value : 'Todos';
     
     const reports = allReports.filter(r => {
       const matchSec = secFilter === 'Todas' || r.secretaria === secFilter;
       const matchStat = statFilter === 'Todos' || r.status === statFilter;
       const matchBairro = bairroFilter === 'Todos' || (r.bairro && r.bairro.trim() === bairroFilter);
-      return matchSec && matchStat && matchBairro;
+      const matchTipo = tipoFilter === 'Todos' || r.tipo === tipoFilter;
+      return matchSec && matchStat && matchBairro && matchTipo;
     });
 
     latestReports = reports;
@@ -237,19 +240,32 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach(report => {
       const date = new Date(report.created_at).toLocaleDateString('pt-BR');
       const statusClass = 'status-' + report.status.replace(' ', '');
+      
+      let tipoColor = 'var(--text-muted)';
+      if(report.tipo === 'Problema') tipoColor = 'var(--danger)';
+      if(report.tipo === 'Duvida') tipoColor = 'var(--warning)';
+      if(report.tipo === 'Feedback') tipoColor = 'var(--secondary)';
+      if(report.tipo === 'Ouvidoria') tipoColor = 'var(--primary)';
+      const tipoBadge = `<span style="background: ${tipoColor}; color: white; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold; margin-bottom: 0.5rem; display: inline-block;">${report.tipo || 'Problema'}</span>`;
+
+      const cardImgHtml = report.photo 
+        ? `<img src="${report.photo}" class="card-img" alt="Foto" style="pointer-events: none;">` 
+        : `<div class="card-img" style="background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: bold; pointer-events: none;">Sem Foto</div>`;
 
       const card = document.createElement('div');
       card.className = 'card';
       card.innerHTML = `
         <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes">
-          <img src="${report.photo}" class="card-img" alt="Foto" style="pointer-events: none;">
+          ${cardImgHtml}
           <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
             <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Detalhes</span>
           </div>
         </div>
         <div class="card-content">
-          <span class="status-badge ${statusClass}">${report.status}</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); float: right">${date}</span>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <div>${tipoBadge}<br><span class="status-badge ${statusClass}" style="margin-bottom:0;">${report.status}</span></div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">${date}</span>
+          </div>
           <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${report.title}</h3>
           <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 500;">
             📍 ${report.endereco || 'Endereço não informado'} ${report.bairro ? ' - ' + report.bairro : ''}
@@ -312,7 +328,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     const subEl = document.getElementById('modalSubcategory');
     if (subEl) subEl.textContent = report.subcategory ? `> ${report.subcategory}` : '';
 
-    document.getElementById('modalPhoto').src = report.photo;
+    const modalPhoto = document.getElementById('modalPhoto');
+    if (report.photo) {
+      modalPhoto.src = report.photo;
+      modalPhoto.style.display = 'block';
+    } else {
+      modalPhoto.style.display = 'none';
+    }
+    
     document.getElementById('modalDescription').textContent = report.description;
     document.getElementById('modalLocationText').textContent = `${report.endereco || 'Rua não informada'}, ${report.bairro || 'Bairro não informado'}`;
     document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
@@ -562,6 +585,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   filterSecretaria.addEventListener('change', loadDashboard);
   filterStatus.addEventListener('change', loadDashboard);
   filterBairro.addEventListener('change', loadDashboard);
+  if (filterTipo) filterTipo.addEventListener('change', loadDashboard);
 
   // Export CSV
   const btnExportCSV = document.getElementById('btnExportCSV');

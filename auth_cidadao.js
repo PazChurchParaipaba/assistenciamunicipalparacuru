@@ -2,6 +2,11 @@ import { supabase } from './supabaseClient.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   const authContainer = document.getElementById('authContainer');
+  const LocalNotifications = window.Capacitor ? window.Capacitor.Plugins.LocalNotifications : null;
+
+  if (LocalNotifications) {
+    LocalNotifications.requestPermissions();
+  }
 
   async function renderAuthStatus() {
     const sessionData = localStorage.getItem('cidadaoSession');
@@ -20,11 +25,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('btnMeusRelatos').addEventListener('click', () => {
         showMeusRelatosModal(session.id);
       });
-      // Show form when logged in
+      // Show action menu when logged in
+      const actionMenu = document.getElementById('actionMenu');
       const wizardForm = document.getElementById('wizardForm');
       const stepper = document.getElementById('stepperIndicator');
-      if (wizardForm) wizardForm.style.display = 'block';
-      if (stepper) stepper.style.display = 'flex';
+      const quickForm = document.getElementById('quickForm');
+      
+      if (actionMenu) actionMenu.style.display = 'grid';
+      if (wizardForm) wizardForm.style.display = 'none';
+      if (stepper) stepper.style.display = 'none';
+      if (quickForm) quickForm.style.display = 'none';
+      
+      setupCitizenRealtime(session.id);
     } else {
       authContainer.innerHTML = `
         <button id="btnEntrarCidadao" style="background:none; border:none; color: var(--primary); cursor:pointer; font-weight:bold;">Entrar / Cadastrar</button>
@@ -32,11 +44,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('btnEntrarCidadao').addEventListener('click', () => {
         showAuthModal();
       });
-      // Hide form if not logged in
+      // Hide everything if not logged in
+      const actionMenu = document.getElementById('actionMenu');
       const wizardForm = document.getElementById('wizardForm');
       const stepper = document.getElementById('stepperIndicator');
+      const quickForm = document.getElementById('quickForm');
+      if (actionMenu) actionMenu.style.display = 'none';
       if (wizardForm) wizardForm.style.display = 'none';
       if (stepper) stepper.style.display = 'none';
+      if (quickForm) quickForm.style.display = 'none';
       
       // Auto show modal
       showAuthModal();
@@ -224,7 +240,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const date = new Date(r.created_at).toLocaleDateString('pt-BR');
       const statusColor = r.status === 'Aberto' ? 'var(--danger)' : (r.status === 'Resolvido' ? 'var(--secondary)' : 'var(--warning)');
       return `
-        <div style="background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); padding: 1.2rem; border-radius: 16px; display: flex; gap: 1.2rem; align-items: center; transition: transform 0.3s ease, box-shadow 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
+        <div class="relato-card-cidadao" data-id="${r.id}" style="cursor: pointer; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--border-color); padding: 1.2rem; border-radius: 16px; display: flex; gap: 1.2rem; align-items: center; transition: transform 0.3s ease, box-shadow 0.3s ease;" onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='var(--shadow-sm)';" onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='none';">
           <img src="${r.photo}" style="width: 90px; height: 90px; object-fit: cover; border-radius: 12px; box-shadow: 0 4px 10px rgba(0,0,0,0.1);">
           <div style="flex: 1;">
             <h3 style="margin-bottom: 0.3rem; font-size: 1.1rem; color: var(--text-main); font-weight: 600;">${r.title}</h3>
@@ -236,6 +252,146 @@ document.addEventListener('DOMContentLoaded', async () => {
         </div>
       `;
     }).join('');
+
+    listContainer.querySelectorAll('.relato-card-cidadao').forEach(card => {
+      card.addEventListener('click', () => {
+         const id = card.getAttribute('data-id');
+         const report = reports.find(x => x.id === id);
+         openCidadaoChatModal(report);
+      });
+    });
+  }
+
+  function openCidadaoChatModal(report) {
+    const modalHtml = `
+      <div id="cidadaoChatModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease;">
+        <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 20px; width: 90%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; position: relative;">
+          <button id="closeCidadaoChat" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+          <h3 style="margin-bottom: 0.5rem; color: var(--text-main); padding-right: 20px;">${report.title}</h3>
+          <p style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 1rem;">Status: <strong style="color: var(--primary);">${report.status}</strong></p>
+          
+          <div id="cidadaoChatContainer" style="flex: 1; min-height: 250px; overflow-y: auto; background: var(--bg-main); border-radius: 12px; padding: 1rem; margin-bottom: 1rem; display: flex; flex-direction: column; gap: 0.5rem; border: 1px solid var(--border-color);">
+            <!-- Messages -->
+          </div>
+          
+          <div style="display: flex; gap: 0.5rem;">
+             <input type="text" id="cidadaoChatInput" placeholder="Digite sua mensagem..." style="flex: 1; margin: 0; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: var(--text-main);">
+             <button id="btnSendCidadaoChat" class="btn btn-primary" style="width: auto; padding: 0.8rem 1.2rem;">Enviar</button>
+          </div>
+        </div>
+      </div>
+    `;
+    document.body.insertAdjacentHTML('beforeend', modalHtml);
+
+    document.getElementById('closeCidadaoChat').addEventListener('click', () => {
+      document.getElementById('cidadaoChatModal').remove();
+    });
+
+    const chatContainer = document.getElementById('cidadaoChatContainer');
+    const btnSend = document.getElementById('btnSendCidadaoChat');
+    const chatInput = document.getElementById('cidadaoChatInput');
+
+    function renderMessages() {
+      chatContainer.innerHTML = '';
+      const chatArray = report.chat_history || [];
+      if (chatArray.length === 0) {
+        chatContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">Envie uma mensagem para a secretaria.</p>';
+        return;
+      }
+      chatArray.forEach(msg => {
+        const isMe = msg.sender === 'cidadao';
+        const align = isMe ? 'flex-end' : 'flex-start';
+        const bg = isMe ? 'var(--primary)' : 'rgba(255,255,255,0.1)';
+        const color = isMe ? '#fff' : 'var(--text-main)';
+        const d = new Date(msg.date).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+
+        chatContainer.innerHTML += `
+          <div style="align-self: ${align}; background: ${bg}; color: ${color}; padding: 0.5rem 1rem; border-radius: 12px; max-width: 85%; border: 1px solid var(--border-color);">
+            <div style="font-size: 0.7rem; opacity: 0.8; margin-bottom: 0.2rem;">${isMe ? 'Você' : 'Secretaria'} • ${d}</div>
+            <div style="font-size: 0.95rem;">${msg.text}</div>
+          </div>
+        `;
+      });
+      chatContainer.scrollTop = chatContainer.scrollHeight;
+    }
+
+    renderMessages();
+
+    btnSend.addEventListener('click', async () => {
+      const text = chatInput.value.trim();
+      if (!text) return;
+      
+      const newMsg = {
+        sender: 'cidadao',
+        text: text,
+        date: new Date().toISOString()
+      };
+
+      const chatHistory = report.chat_history || [];
+      chatHistory.push(newMsg);
+
+      const { error } = await supabase
+        .from('reports_paracuru')
+        .update({ chat_history: chatHistory })
+        .eq('id', report.id);
+
+      if (!error) {
+        chatInput.value = '';
+        renderMessages();
+      } else {
+        alert('Erro ao enviar mensagem.');
+      }
+    });
+  }
+
+  function setupCitizenRealtime(userId) {
+    supabase
+      .channel('public:reports_cidadao')
+      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'reports_paracuru', filter: `user_id=eq.${userId}` }, payload => {
+        const newRecord = payload.new;
+        const oldRecord = payload.old;
+        
+        // Notify on status change
+        if (newRecord.status !== oldRecord.status && (newRecord.status === 'Em Andamento' || newRecord.status === 'Resolvido')) {
+          sendLocalNotification(`Status Atualizado`, `Seu relato "${newRecord.title}" mudou para ${newRecord.status}`);
+        }
+
+        // Notify on new message from secretaria
+        const oldChatLen = oldRecord.chat_history ? oldRecord.chat_history.length : 0;
+        const newChatLen = newRecord.chat_history ? newRecord.chat_history.length : 0;
+        if (newChatLen > oldChatLen) {
+           const lastMsg = newRecord.chat_history[newChatLen - 1];
+           if (lastMsg.sender === 'secretaria') {
+             sendLocalNotification(`Nova Mensagem da Secretaria`, lastMsg.text);
+           }
+        }
+      })
+      .subscribe();
+  }
+
+  function sendLocalNotification(title, body) {
+    if (LocalNotifications) {
+      LocalNotifications.schedule({
+        notifications: [
+          {
+            title: title,
+            body: body,
+            id: new Date().getTime(),
+            schedule: { at: new Date(Date.now() + 1000) },
+            smallIcon: "ic_stat_icon_config_sample", // Uses default app icon
+          }
+        ]
+      });
+    } else {
+      // Fallback for browser testing
+      if (Notification.permission === 'granted') {
+         new Notification(title, { body });
+      } else if (Notification.permission !== 'denied') {
+         Notification.requestPermission().then(permission => {
+           if (permission === 'granted') new Notification(title, { body });
+         });
+      }
+    }
   }
 
   renderAuthStatus();

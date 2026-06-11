@@ -27,7 +27,8 @@ document.addEventListener('DOMContentLoaded', () => {
     'Educação': ['Problema na escola', 'Falta de professor', 'Transporte escolar', 'Merenda'],
     'Assistência Social': ['CRAS/CREAS', 'Benefícios sociais', 'Acolhimento', 'Doações'],
     'Turismo': ['Informações turísticas', 'Manutenção de ponto turístico', 'Sinalização turística', 'Outros'],
-    'Governo': ['Ouvidoria', 'Sugestão', 'Reclamação', 'Outros']
+    'Governo': ['Ouvidoria', 'Sugestão', 'Reclamação', 'Outros'],
+    'Tributos': ['IPTU', 'Alvará', 'Taxas', 'Multas', 'Dívida Ativa', 'Outros']
   };
 
   const titleInput = document.getElementById('title');
@@ -38,14 +39,18 @@ document.addEventListener('DOMContentLoaded', () => {
   titleInput.addEventListener('input', (e) => {
     const text = e.target.value.toLowerCase();
     let changed = false;
-    if (text.includes('luz') || text.includes('lâmpada') || text.includes('poste') || text.includes('escuro')) {
+    if (/\b(luz|lâmpada|lampada|poste|escuro|apagado)\b/i.test(text)) {
       secInput.value = 'Iluminação Pública'; changed = true;
-    } else if (text.includes('buraco') || text.includes('asfalto') || text.includes('rua') || text.includes('calçada')) {
+    } else if (/\b(buraco|asfalto|rua|calçada|pavimento)\b/i.test(text)) {
       secInput.value = 'Infraestrutura'; changed = true;
-    } else if (text.includes('lixo') || text.includes('árvore') || text.includes('animal') || text.includes('mato')) {
+    } else if (/\b(lixo|árvore|arvore|animal|animais|mato|entulho)\b/i.test(text)) {
       secInput.value = 'Meio Ambiente'; changed = true;
-    } else if (text.includes('médico') || text.includes('remédio') || text.includes('posto') || text.includes('saúde')) {
+    } else if (/\b(médico|medico|remédio|remedio|posto|saúde|saude|exame|hospital)\b/i.test(text)) {
       secInput.value = 'Saúde'; changed = true;
+    } else if (/\b(ônibus|onibus|transporte|escola|professor|matrícula|matricula|creche)\b/i.test(text)) {
+      secInput.value = 'Educação'; changed = true;
+    } else if (/\b(imposto|iptu|taxa|tributo|multa|alvará|alvara|dívida|divida)\b/i.test(text)) {
+      secInput.value = 'Tributos'; changed = true;
     }
     if (changed) secInput.dispatchEvent(new Event('change'));
   });
@@ -68,6 +73,152 @@ document.addEventListener('DOMContentLoaded', () => {
       subGroup.style.display = 'none';
     }
   });
+
+  // --- NEW MENU LOGIC ---
+  const actionMenu = document.getElementById('actionMenu');
+  const wizardForm = document.getElementById('wizardForm');
+  const stepperIndicator = document.getElementById('stepperIndicator');
+  const quickForm = document.getElementById('quickForm');
+
+  const btnActionProblema = document.getElementById('btnActionProblema');
+  const btnActionDuvida = document.getElementById('btnActionDuvida');
+  const btnActionFeedback = document.getElementById('btnActionFeedback');
+  const btnActionOuvidoria = document.getElementById('btnActionOuvidoria');
+
+  const quickFormTitle = document.getElementById('quickFormTitle');
+  const quickFormType = document.getElementById('quickFormType');
+  const quickTitle = document.getElementById('quickTitle');
+  const quickSecBadge = document.getElementById('quickSecBadge');
+  const quickSecretaria = document.getElementById('quickSecretaria');
+  const quickSecGroup = document.getElementById('quickSecGroup');
+
+  if (btnActionProblema) {
+    btnActionProblema.addEventListener('click', () => {
+      actionMenu.style.display = 'none';
+      wizardForm.style.display = 'block';
+      stepperIndicator.style.display = 'flex';
+      setTimeout(() => { if (map) map.invalidateSize(); }, 200);
+    });
+  }
+
+  function showQuickForm(tipo, titulo) {
+    actionMenu.style.display = 'none';
+    quickForm.style.display = 'block';
+    quickFormTitle.textContent = titulo;
+    quickFormType.value = tipo;
+    quickTitle.value = '';
+    quickSecretaria.value = 'Governo'; // default fallback
+    quickSecBadge.textContent = 'Governo';
+    
+    if (tipo === 'Duvida') {
+      quickSecGroup.style.display = 'block';
+      quickTitle.placeholder = 'Qual a sua dúvida? Ex: Como faço para renovar minha CNH?';
+    } else if (tipo === 'Feedback') {
+      quickSecGroup.style.display = 'none';
+      quickTitle.placeholder = 'Deixe sua sugestão ou crítica...';
+    } else {
+      quickSecGroup.style.display = 'none';
+      quickTitle.placeholder = 'Escreva para a ouvidoria...';
+    }
+  }
+
+  if (btnActionDuvida) btnActionDuvida.addEventListener('click', () => showQuickForm('Duvida', '❓ Enviar Dúvida'));
+  if (btnActionFeedback) btnActionFeedback.addEventListener('click', () => showQuickForm('Feedback', '💬 Enviar Feedback'));
+  if (btnActionOuvidoria) btnActionOuvidoria.addEventListener('click', () => showQuickForm('Ouvidoria', '🏛️ Ouvidoria Geral'));
+
+  const btnCancelQuickForm = document.getElementById('btnCancelQuickForm');
+  if (btnCancelQuickForm) {
+    btnCancelQuickForm.addEventListener('click', () => {
+      quickForm.style.display = 'none';
+      actionMenu.style.display = 'grid';
+    });
+  }
+
+  const btnCancelWizard = document.getElementById('btnCancelWizard');
+  if (btnCancelWizard) {
+    btnCancelWizard.addEventListener('click', () => {
+      wizardForm.style.display = 'none';
+      stepperIndicator.style.display = 'none';
+      actionMenu.style.display = 'grid';
+      currentStep = 1;
+      showStep(currentStep);
+    });
+  }
+
+  // Auto-detect secretaria for QuickForm (Dúvidas)
+  if (quickTitle) {
+    quickTitle.addEventListener('input', (e) => {
+      if (quickFormType.value !== 'Duvida') return;
+      const text = e.target.value.toLowerCase();
+      let sec = 'Governo';
+      
+      if (/\b(luz|lâmpada|lampada|poste|escuro|apagado)\b/i.test(text)) sec = 'Iluminação Pública';
+      else if (/\b(buraco|asfalto|rua|calçada|pavimento)\b/i.test(text)) sec = 'Infraestrutura';
+      else if (/\b(lixo|árvore|arvore|animal|animais|mato|entulho)\b/i.test(text)) sec = 'Meio Ambiente';
+      else if (/\b(médico|medico|remédio|remedio|posto|saúde|saude|exame|hospital)\b/i.test(text)) sec = 'Saúde';
+      else if (/\b(ônibus|onibus|transporte|escola|professor|matrícula|matricula|creche)\b/i.test(text)) sec = 'Educação';
+      else if (/\b(imposto|iptu|taxa|tributo|multa|alvará|alvara|dívida|divida)\b/i.test(text)) sec = 'Tributos';
+      
+      quickSecretaria.value = sec;
+      quickSecBadge.textContent = sec;
+    });
+  }
+
+  const btnSubmitQuickForm = document.getElementById('btnSubmitQuickForm');
+  if (btnSubmitQuickForm) {
+    btnSubmitQuickForm.addEventListener('click', async () => {
+      const text = quickTitle.value.trim();
+      if (!text) {
+        alert('Por favor, digite sua mensagem.');
+        return;
+      }
+
+      const sessionData = localStorage.getItem('cidadaoSession');
+      const session = sessionData ? JSON.parse(sessionData) : null;
+      if (!session) {
+        alert('Você precisa estar logado!');
+        return;
+      }
+
+      const originalText = btnSubmitQuickForm.textContent;
+      btnSubmitQuickForm.textContent = 'Enviando...';
+      btnSubmitQuickForm.disabled = true;
+
+      try {
+        const titleStr = text;
+        const secretariaStr = quickFormType.value === 'Duvida' ? quickSecretaria.value : 'Governo';
+        const user = session;
+
+        const report = {
+          title: `${quickFormType.value} - App Cidadão`,
+          secretaria: secretariaStr,
+          description: titleStr,
+          status: 'Aberto',
+          tipo: quickFormType.value,
+          user_id: user.id
+        };
+
+        const { error } = await supabase
+          .from('reports_paracuru')
+          .insert([report]);
+
+        if (error) throw error;
+
+        quickForm.innerHTML = `
+          <div style="text-align: center; padding: 1rem;">
+            <h3 style="color: var(--success); margin-bottom: 1rem;">✅ Enviado com Sucesso!</h3>
+            <p style="color: var(--text-muted); margin-bottom: 1.5rem;">Acompanhe em "Meus Relatos".</p>
+            <button onclick="window.location.reload()" class="btn btn-primary" style="width: 100%;">Voltar ao Início</button>
+          </div>
+        `;
+      } catch (err) {
+        alert('Erro ao enviar. Tente novamente.');
+        btnSubmitQuickForm.textContent = originalText;
+        btnSubmitQuickForm.disabled = false;
+      }
+    });
+  }
+  // --- END MENU LOGIC ---
 
   // Wizard Logic
   let currentStep = 1;
@@ -250,6 +401,7 @@ document.addEventListener('DOMContentLoaded', () => {
       if (!navigator.onLine) {
         // Modo offline
         const offlineData = {
+          tipo: 'Problema',
           title: document.getElementById('title').value,
           secretaria: document.getElementById('secretaria').value,
           description: document.getElementById('description').value,
@@ -299,6 +451,7 @@ document.addEventListener('DOMContentLoaded', () => {
         .from('reports_paracuru')
         .insert([
           {
+            tipo: 'Problema',
             title: document.getElementById('title').value,
             secretaria: document.getElementById('secretaria').value,
             description: document.getElementById('description').value,
@@ -354,6 +507,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const { data: { publicUrl } } = supabase.storage.from('relatos-fotos').getPublicUrl(fileName);
         
         await supabase.from('reports_paracuru').insert([{
+          tipo: item.tipo || 'Problema',
           title: item.title,
           secretaria: item.secretaria,
           description: item.description,

@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Paracuru Alerta V2</title>
+  <title>SEGOV PARACURU</title>
   
   <link rel="icon" href="logo_paracuru.png" type="image/png">
   <link rel="manifest" href="manifest.json">
@@ -17,13 +17,42 @@
 
   <div class="container">
     <header>
-      <img src="logo_paracuru.png" alt="Paracuru Alerta" class="app-logo">
-      <h1>Paracuru Alerta</h1>
+      <img src="logo_paracuru.png" alt="SEGOV PARACURU" class="app-logo">
+      <h1>SEGOV PARACURU</h1>
       <div id="authContainer" style="font-size: 0.9rem;">
         <!-- Managed by auth_cidadao.js -->
       </div>
       <p class="subtitle">Faça a diferença na sua rua com 3 passos simples.</p>
     </header>
+
+    <div id="actionMenu" style="display: none; grid-template-columns: repeat(2, 1fr); gap: 1rem; margin-bottom: 2rem;">
+      <button id="btnActionProblema" class="btn" style="background: rgba(239, 68, 68, 0.75); backdrop-filter: blur(8px); color: white; height: 70px; font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 16px rgba(239, 68, 68, 0.2);">🚨<br>Problema</button>
+      <button id="btnActionDuvida" class="btn" style="background: rgba(245, 158, 11, 0.75); backdrop-filter: blur(8px); color: white; height: 70px; font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 16px rgba(245, 158, 11, 0.2);">❓<br>Dúvidas</button>
+      <button id="btnActionFeedback" class="btn" style="background: rgba(139, 92, 246, 0.75); backdrop-filter: blur(8px); color: white; height: 70px; font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 16px rgba(139, 92, 246, 0.2);">💬<br>Feedback</button>
+      <button id="btnActionOuvidoria" class="btn" style="background: rgba(249, 115, 22, 0.75); backdrop-filter: blur(8px); color: white; height: 70px; font-size: 0.95rem; border: 1px solid rgba(255,255,255,0.2); box-shadow: 0 8px 16px rgba(249, 115, 22, 0.2);">🏛️<br>Ouvidoria</button>
+    </div>
+
+    <!-- Quick Form for Duvida/Feedback/Ouvidoria -->
+    <div id="quickForm" style="display: none; background: var(--bg-card); padding: 1.5rem; border-radius: 12px; margin-bottom: 2rem; border: 1px solid var(--border-color);">
+      <h3 id="quickFormTitle" style="margin-bottom: 1rem; color: var(--text-main);">...</h3>
+      <input type="hidden" id="quickFormType">
+      
+      <div class="form-group">
+        <label for="quickTitle">Sua Mensagem</label>
+        <textarea id="quickTitle" placeholder="Digite aqui..." required style="min-height: 100px; width: 100%; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); background: transparent; color: var(--text-main); font-family: inherit; margin-bottom: 1rem;"></textarea>
+      </div>
+
+      <div class="form-group" id="quickSecGroup" style="display: none;">
+        <label style="color: var(--text-muted); font-size: 0.9rem; display: block; margin-bottom: 0.5rem;">Secretaria Direcionada:</label>
+        <div id="quickSecBadge" style="display: inline-block; padding: 0.4rem 1rem; background: var(--primary); color: white; border-radius: 99px; font-size: 0.85rem; font-weight: bold; margin-bottom: 1rem;">Governo</div>
+        <input type="hidden" id="quickSecretaria" value="Governo">
+      </div>
+
+      <div style="display: flex; gap: 1rem;">
+        <button type="button" id="btnCancelQuickForm" class="btn btn-secondary" style="flex: 1;">Cancelar</button>
+        <button type="button" id="btnSubmitQuickForm" class="btn btn-primary" style="flex: 1;">Enviar</button>
+      </div>
+    </div>
 
     <div class="stepper-indicator" id="stepperIndicator" style="display: none;">
       <div class="dot active" id="dot1"></div>
@@ -53,6 +82,7 @@
             <option value="Assistência Social">Assistência Social</option>
             <option value="Turismo">Turismo</option>
             <option value="Governo">Governo</option>
+            <option value="Tributos">Tributos</option>
           </select>
         </div>
 
@@ -69,6 +99,7 @@
         </div>
 
         <div class="btn-group">
+          <button type="button" id="btnCancelWizard" class="btn btn-secondary">Cancelar</button>
           <button type="button" class="btn btn-primary next-btn">Avançar</button>
         </div>
       </div>
@@ -115,6 +146,9 @@
 
     </form>
     
+    <nav style="text-align: center; margin-top: 2rem;">
+      <a href="painel.html" style="color: var(--text-muted); text-decoration: none;">Acesso Servidor Público &rarr;</a>
+    </nav>
   </div>
 
   <!-- Leaflet JS -->

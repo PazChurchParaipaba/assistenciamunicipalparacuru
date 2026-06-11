@@ -38,7 +38,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   const reportsGrid = document.getElementById('reportsGrid');
   const filterSecretaria = document.getElementById('filterSecretaria');
+  const filterTipo = document.getElementById('filterTipo');
   const filterStatus = document.getElementById('filterStatus');
+  const filterBairro = document.getElementById('filterBairro');
   const btnClear = document.getElementById('btnClear');
 
   // Restringe a visualização à secretaria do servidor (se não for Admin Geral / "Todas")
@@ -54,6 +56,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   let heatmapLayer = null;
   let isHeatmapActive = false;
   let latestReports = [];
+  let currentReportId = null;
+  let responsaveisList = [];
 
   // Init Map
   function initMap() {
@@ -79,13 +83,45 @@ document.addEventListener('DOMContentLoaded', async () => {
       return;
     }
     
+    // Busca os nomes dos perfis
+    const { data: profilesData } = await supabase.from('profiles').select('id, nome_completo, whatsapp');
+    window.profileMap = {};
+    if (profilesData) {
+      profilesData.forEach(p => {
+        window.profileMap[p.id] = { nome: p.nome_completo, whatsapp: p.whatsapp };
+      });
+    }
+    
+    // Populate Bairro filter with unique values
+    const uniqueBairros = [...new Set(allReports.filter(r => r.bairro).map(r => r.bairro.trim()))].sort();
+    const currentBairroFilter = filterBairro.value;
+    
+    filterBairro.innerHTML = '<option value="Todos">Todos os Bairros</option>';
+    uniqueBairros.forEach(b => {
+      const opt = document.createElement('option');
+      opt.value = b;
+      opt.textContent = b;
+      filterBairro.appendChild(opt);
+    });
+    
+    // Restore previous selection if it still exists
+    if (currentBairroFilter && currentBairroFilter !== 'Todos' && uniqueBairros.includes(currentBairroFilter)) {
+      filterBairro.value = currentBairroFilter;
+    } else {
+      filterBairro.value = 'Todos';
+    }
+
     const secFilter = filterSecretaria.value;
     const statFilter = filterStatus.value;
+    const bairroFilter = filterBairro.value;
+    const tipoFilter = filterTipo ? filterTipo.value : 'Todos';
     
     const reports = allReports.filter(r => {
       const matchSec = secFilter === 'Todas' || r.secretaria === secFilter;
       const matchStat = statFilter === 'Todos' || r.status === statFilter;
-      return matchSec && matchStat;
+      const matchBairro = bairroFilter === 'Todos' || (r.bairro && r.bairro.trim() === bairroFilter);
+      const matchTipo = tipoFilter === 'Todos' || r.tipo === tipoFilter;
+      return matchSec && matchStat && matchBairro && matchTipo;
     });
 
     latestReports = reports;
@@ -213,41 +249,113 @@ document.addEventListener('DOMContentLoaded', async () => {
     filtered.forEach(report => {
       const date = new Date(report.created_at).toLocaleDateString('pt-BR');
       const statusClass = 'status-' + report.status.replace(' ', '');
+      
+      let tipoColor = 'var(--text-muted)';
+      if(report.tipo === 'Problema') tipoColor = 'var(--danger)';
+      if(report.tipo === 'Duvida') tipoColor = 'var(--warning)';
+      if(report.tipo === 'Feedback') tipoColor = 'var(--secondary)';
+      if(report.tipo === 'Ouvidoria') tipoColor = 'var(--primary)';
+      const tipoBadge = `<span style="background: ${tipoColor}; color: white; padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.75rem; font-weight: bold; margin-bottom: 0.5rem; display: inline-block;">${report.tipo || 'Problema'}</span>`;
+
+      const cardImgHtml = report.photo 
+        ? `<img src="${report.photo}" class="card-img" alt="Foto" style="pointer-events: none;">` 
+        : `<div class="card-img" style="background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: bold; pointer-events: none;">Sem Foto</div>`;
+
+      // Lógica para saber se há mensagem não respondida do cidadão
+      let chatNotificationHtml = '';
+      if (report.chat_history && report.chat_history.length > 0) {
+        const lastMsg = report.chat_history[report.chat_history.length - 1];
+        if (lastMsg.sender === 'cidadao') {
+          chatNotificationHtml = `<div style="position: absolute; top: -10px; right: -10px; background: var(--danger); color: white; padding: 0.3rem 0.6rem; border-radius: 99px; font-size: 0.75rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; animation: pulse 2s infinite;">💬 Nova Mensagem</div>`;
+        } else {
+          chatNotificationHtml = `<div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; z-index: 10;">💬 ${report.chat_history.length}</div>`;
+        }
+      }
 
       const card = document.createElement('div');
       card.className = 'card';
+      card.style.position = 'relative'; // Para segurar o badge
       card.innerHTML = `
-        <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes">
-          <img src="${report.photo}" class="card-img" alt="Foto" style="pointer-events: none;">
+        ${chatNotificationHtml}
+        <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes do chat">
+          ${cardImgHtml}
           <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
-            <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Detalhes</span>
+            <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Chat Completo</span>
           </div>
         </div>
         <div class="card-content">
-          <span class="status-badge ${statusClass}">${report.status}</span>
-          <span style="font-size: 0.8rem; color: var(--text-muted); float: right">${date}</span>
+          <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+            <div>${tipoBadge}<br><span class="status-badge ${statusClass}" style="margin-bottom:0;">${report.status}</span></div>
+            <span style="font-size: 0.8rem; color: var(--text-muted);">${date}</span>
+          </div>
           <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${report.title}</h3>
+          <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 500;">
+            📍 ${report.endereco || 'Endereço não informado'} ${report.bairro ? ' - ' + report.bairro : ''}
+          </p>
           <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
             <b>${report.secretaria}</b> ${report.subcategory ? `> ${report.subcategory}` : ''}<br>
             ${report.description}
           </p>
           
-          <div class="card-actions">
-            <select class="status-update" data-id="${report.id}">
-              <option value="Aberto" ${report.status === 'Aberto' ? 'selected' : ''}>Aberto</option>
-              <option value="Em Andamento" ${report.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
-              <option value="Resolvido" ${report.status === 'Resolvido' ? 'selected' : ''}>Resolvido</option>
-            </select>
+          <div class="card-actions" style="display: flex; gap: 0.5rem; width: 100%;">
+            <input type="text" class="quick-reply-input" data-id="${report.id}" placeholder="Responder ao cidadão..." style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main);">
+            <button class="btn btn-primary quick-reply-btn" data-id="${report.id}" style="padding: 0.5rem 1rem; width: auto; font-size: 0.9rem;">Enviar</button>
           </div>
         </div>
       `;
       reportsGrid.appendChild(card);
     });
 
-    // Add event listeners to new selects
-    document.querySelectorAll('.status-update').forEach(select => {
-      select.addEventListener('change', (e) => {
-        updateStatus(e.target.getAttribute('data-id'), e.target.value);
+    // Add event listeners to quick reply buttons
+    document.querySelectorAll('.quick-reply-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const input = document.querySelector(`.quick-reply-input[data-id="${id}"]`);
+        const text = input.value.trim();
+        if (!text) return;
+        
+        const originalText = e.target.textContent;
+        e.target.textContent = 'Enviando...';
+        e.target.disabled = true;
+
+        const report = filtered.find(r => r.id === id);
+        const chatHistory = report.chat_history || [];
+        chatHistory.push({
+          sender: 'secretaria',
+          text: text,
+          date: new Date().toISOString()
+        });
+
+        const sessionData = localStorage.getItem('servidorSession');
+        const sessionObj = sessionData ? JSON.parse(sessionData) : null;
+        const serverEmail = sessionObj ? sessionObj.email : 'Servidor';
+        
+        let history = report.action_history || [];
+        history.push({
+          date: new Date().toISOString(),
+          action: 'Enviou uma mensagem para o cidadão',
+          user: serverEmail
+        });
+
+        // Quando responde, podemos mudar o status para "Em Andamento" automaticamente
+        const newStatus = report.status === 'Aberto' ? 'Em Andamento' : report.status;
+
+        const { error } = await supabase
+          .from('reports_paracuru')
+          .update({ chat_history: chatHistory, action_history: history, status: newStatus })
+          .eq('id', id);
+
+        if (error) {
+          alert('Erro ao enviar mensagem.');
+          e.target.textContent = originalText;
+          e.target.disabled = false;
+        } else {
+          input.value = '';
+          e.target.textContent = 'Enviado!';
+          setTimeout(() => {
+            loadDashboard(); // Atualiza a tela
+          }, 1000);
+        }
       });
     });
 
@@ -272,21 +380,67 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function showDetailsModal(report) {
+    currentReportId = report.id;
     document.getElementById('modalTitle').textContent = report.title;
     
     const statusEl = document.getElementById('modalStatus');
     statusEl.textContent = report.status;
     const statusColor = report.status === 'Aberto' ? 'var(--danger)' : (report.status === 'Resolvido' ? 'var(--secondary)' : 'var(--warning)');
-    statusEl.style.background = `${statusColor}20`;
-    statusEl.style.color = statusColor;
+    const date = new Date(report.created_at).toLocaleString('pt-BR');
+    
+    // Obtém os dados do cidadão do mapa que criamos no loadDashboard
+    const citizen = (window.profileMap && window.profileMap[report.user_id]) 
+      ? window.profileMap[report.user_id] 
+      : { nome: 'Cidadão Desconhecido', whatsapp: '' };
+      
+    // Se a descrição for genérica (criada pelo app antigo), usamos o título como a mensagem real
+    let displayDescription = report.description;
+    if (report.description.includes('enviada via App Cidadão') && report.title.length > 20) {
+       displayDescription = report.title;
+    } else if (report.tipo === 'Duvida' || report.tipo === 'Feedback' || report.tipo === 'Ouvidoria') {
+       // Para novos reports gerados pelo app atualizado, a descrição correta já vem no report.description!
+       // Mas se o title contiver texto longo e a description estiver genérica, mesclamos.
+       if (report.title && !report.title.includes('App Cidadão') && report.description.includes('App Cidadão')) {
+          displayDescription = report.title;
+       }
+    }
 
-    document.getElementById('modalMeta').textContent = `${new Date(report.created_at).toLocaleDateString('pt-BR')} - ${report.secretaria}`;
-    const subEl = document.getElementById('modalSubcategory');
-    if (subEl) subEl.textContent = report.subcategory ? `> ${report.subcategory}` : '';
-
-    document.getElementById('modalPhoto').src = report.photo;
-    document.getElementById('modalDescription').textContent = report.description;
-    document.getElementById('modalLocation').textContent = `Lat: ${report.location_lat.toFixed(5)}, Lng: ${report.location_lng.toFixed(5)}`;
+    document.getElementById('modalTitle').textContent = report.title.includes('App Cidadão') ? report.tipo : report.title;
+    document.getElementById('modalStatus').textContent = report.status;
+    document.getElementById('modalStatus').className = `status-badge status-${report.status.replace(' ', '').toLowerCase()}`;
+    
+    // Trocamos o modalMeta para incluir o nome do cidadão
+    document.getElementById('modalMeta').innerHTML = `${date} • ${report.secretaria} <span id="modalSubcategory" style="font-weight: 600; color: var(--primary);"></span><br><br><span style="background: rgba(79, 70, 229, 0.1); color: var(--primary); padding: 0.3rem 0.6rem; border-radius: 6px; font-weight: bold; font-size: 0.85rem;">👤 Enviado por: ${citizen.nome} ${citizen.whatsapp ? '(' + citizen.whatsapp + ')' : ''}</span>`;
+    
+    if (report.subcategory) {
+      document.getElementById('modalSubcategory').textContent = ` > ${report.subcategory}`;
+    } else {
+      document.getElementById('modalSubcategory').textContent = '';
+    }
+    
+    const photoEl = document.getElementById('modalPhoto');
+    if (report.photo) {
+      photoEl.src = report.photo;
+      photoEl.style.display = 'block';
+    } else {
+      photoEl.style.display = 'none';
+    }
+    
+    document.getElementById('modalDescription').textContent = displayDescription;
+    document.getElementById('modalLocationText').textContent = `${report.endereco || 'Rua não informada'}, ${report.bairro || 'Bairro não informado'}`;
+    
+    if (report.location_lat != null && report.location_lng != null) {
+      document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
+    } else {
+      document.getElementById('modalLocation').textContent = 'Coordenadas não fornecidas';
+    }
+    
+    document.getElementById('modalResponsavel').value = report.responsavel || '';
+    document.getElementById('modalNotas').value = report.notas_internas || '';
+    
+    if (typeof window.renderChat === 'function') {
+      window.renderChat(report.chat_history || []);
+    }
     
     const historyList = document.getElementById('modalHistory');
     historyList.innerHTML = '';
@@ -300,6 +454,195 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
     
     detailsModal.style.display = 'flex';
+  }
+
+  // Manage Responsavel Logic
+  const responsavelModal = document.getElementById('responsavelModal');
+  const btnManageResponsavel = document.getElementById('btnManageResponsavel');
+  const closeResponsavelModal = document.getElementById('closeResponsavelModal');
+  const btnAddResponsavel = document.getElementById('btnAddResponsavel');
+  const newResponsavelName = document.getElementById('newResponsavelName');
+  const responsavelListEl = document.getElementById('responsavelList');
+  const modalResponsavelSelect = document.getElementById('modalResponsavel');
+
+  if (btnManageResponsavel) {
+    btnManageResponsavel.addEventListener('click', () => {
+      responsavelModal.style.display = 'flex';
+      loadResponsaveis();
+    });
+  }
+
+  if (closeResponsavelModal) {
+    closeResponsavelModal.addEventListener('click', () => {
+      responsavelModal.style.display = 'none';
+      loadResponsaveisForSelect();
+    });
+  }
+
+  async function loadResponsaveis() {
+    let query = supabase.from('responsaveis').select('*').order('nome');
+    if (session.secretaria !== 'Todas') {
+      query = query.eq('secretaria', session.secretaria);
+    }
+    const { data, error } = await query;
+    
+    responsavelListEl.innerHTML = '';
+    if (error) {
+      console.error('Erro ao carregar responsáveis', error);
+      return;
+    }
+    responsaveisList = data || [];
+    
+    responsaveisList.forEach(resp => {
+      const li = document.createElement('li');
+      li.style.padding = '0.5rem';
+      li.style.borderBottom = '1px solid var(--border)';
+      li.style.display = 'flex';
+      li.style.justifyContent = 'space-between';
+      li.innerHTML = `<span>${resp.nome} <small style="color: var(--text-muted)">(${resp.secretaria})</small></span>
+                      <button class="btn btn-secondary" style="padding: 0.2rem 0.5rem; width: auto; font-size: 0.8rem;" onclick="deleteResponsavel('${resp.id}')">Excluir</button>`;
+      responsavelListEl.appendChild(li);
+    });
+    loadResponsaveisForSelect();
+  }
+
+  async function loadResponsaveisForSelect() {
+    if (!modalResponsavelSelect) return;
+    let query = supabase.from('responsaveis').select('*').order('nome');
+    if (session.secretaria !== 'Todas') {
+      query = query.eq('secretaria', session.secretaria);
+    }
+    const { data } = await query;
+    responsaveisList = data || [];
+    
+    const currentVal = modalResponsavelSelect.value;
+    modalResponsavelSelect.innerHTML = '<option value="">Não atribuído</option>';
+    responsaveisList.forEach(resp => {
+      const opt = document.createElement('option');
+      opt.value = resp.nome;
+      opt.textContent = `${resp.nome} (${resp.secretaria})`;
+      modalResponsavelSelect.appendChild(opt);
+    });
+    modalResponsavelSelect.value = currentVal;
+  }
+
+  if (btnAddResponsavel) {
+    btnAddResponsavel.addEventListener('click', async () => {
+      const nome = newResponsavelName.value.trim();
+      if (!nome) return;
+      const secretaria = session.secretaria === 'Todas' ? prompt('Digite a Secretaria para este responsável:') : session.secretaria;
+      if (!secretaria) return;
+
+      const { error } = await supabase.from('responsaveis').insert([{ nome, secretaria }]);
+      if (error) {
+         alert('Erro ao adicionar responsável (a tabela existe?)');
+         console.error(error);
+      } else {
+         newResponsavelName.value = '';
+         loadResponsaveis();
+      }
+    });
+  }
+
+  window.deleteResponsavel = async function(id) {
+    if(confirm('Excluir este responsável?')) {
+      await supabase.from('responsaveis').delete().eq('id', id);
+      loadResponsaveis();
+    }
+  };
+
+  loadResponsaveisForSelect();
+
+  // Salvar Detalhes Internos
+  const btnSaveDetails = document.getElementById('btnSaveDetails');
+  if (btnSaveDetails) {
+    btnSaveDetails.addEventListener('click', async () => {
+      if (!currentReportId) return;
+      
+      const responsavel = document.getElementById('modalResponsavel').value;
+      const notas_internas = document.getElementById('modalNotas').value;
+
+      const { error } = await supabase
+        .from('reports_paracuru')
+        .update({ responsavel, notas_internas })
+        .eq('id', currentReportId);
+
+      if (error) {
+        alert('Erro ao salvar detalhes internos.');
+      } else {
+        alert('Salvo com sucesso!');
+        // Update local data
+        const report = latestReports.find(r => r.id === currentReportId);
+        if (report) {
+          report.responsavel = responsavel;
+          report.notas_internas = notas_internas;
+        }
+      }
+    });
+  }
+
+  // Lógica do Chat
+  const btnSendChat = document.getElementById('btnSendChat');
+  const chatInput = document.getElementById('chatInput');
+
+  window.renderChat = function(chatArray) {
+    const chatContainer = document.getElementById('chatContainer');
+    if (!chatContainer) return;
+    chatContainer.innerHTML = '';
+    if (!chatArray || chatArray.length === 0) {
+      chatContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">Nenhuma mensagem ainda. Inicie a conversa!</p>';
+      return;
+    }
+
+    chatArray.forEach(msg => {
+      const isServidor = msg.sender === 'secretaria';
+      const align = isServidor ? 'flex-end' : 'flex-start';
+      const bg = isServidor ? 'var(--primary)' : 'var(--bg-card)';
+      const color = isServidor ? '#fff' : 'var(--text)';
+      const border = isServidor ? 'none' : '1px solid var(--border)';
+      
+      const d = new Date(msg.date).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
+
+      chatContainer.innerHTML += `
+        <div style="align-self: ${align}; background: ${bg}; color: ${color}; border: ${border}; padding: 0.5rem 1rem; border-radius: 8px; max-width: 80%;">
+          <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.2rem;">${isServidor ? 'Secretaria' : 'Cidadão'} • ${d}</div>
+          <div>${msg.text}</div>
+        </div>
+      `;
+    });
+    chatContainer.scrollTop = chatContainer.scrollHeight;
+  }
+
+  if (btnSendChat) {
+    btnSendChat.addEventListener('click', async () => {
+      const text = chatInput.value.trim();
+      if (!text || !currentReportId) return;
+      
+      const report = latestReports.find(r => r.id === currentReportId);
+      if (!report) return;
+
+      const newMsg = {
+        sender: 'secretaria',
+        text: text,
+        date: new Date().toISOString()
+      };
+
+      const chatHistory = report.chat_history || [];
+      chatHistory.push(newMsg);
+
+      const { error } = await supabase
+        .from('reports_paracuru')
+        .update({ chat_history: chatHistory })
+        .eq('id', currentReportId);
+
+      if (error) {
+        alert('Erro ao enviar mensagem.');
+      } else {
+        chatInput.value = '';
+        window.renderChat(chatHistory);
+        report.chat_history = chatHistory; // update locally
+      }
+    });
   }
 
   async function updateStatus(id, newStatus) {
@@ -334,12 +677,10 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   // Filters Event Listeners
-  filterSecretaria.addEventListener('change', () => {
-    loadDashboard();
-  });
-  filterStatus.addEventListener('change', () => {
-    loadDashboard();
-  });
+  filterSecretaria.addEventListener('change', loadDashboard);
+  filterStatus.addEventListener('change', loadDashboard);
+  filterBairro.addEventListener('change', loadDashboard);
+  if (filterTipo) filterTipo.addEventListener('change', loadDashboard);
 
   // Export CSV
   const btnExportCSV = document.getElementById('btnExportCSV');
@@ -362,7 +703,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         return;
       }
 
-      const headers = ['ID', 'Data', 'Titulo', 'Secretaria', 'Subcategoria', 'Status', 'Descricao', 'Lat', 'Lng'];
+      const headers = ['ID', 'Data', 'Titulo', 'Secretaria', 'Subcategoria', 'Status', 'Descricao', 'Rua', 'Bairro', 'Lat', 'Lng'];
       const csvRows = [headers.join(',')];
 
       filtered.forEach(r => {
@@ -374,6 +715,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           `"${r.subcategory || ''}"`,
           `"${r.status}"`,
           `"${r.description.replace(/"/g, '""')}"`,
+          `"${(r.endereco || '').replace(/"/g, '""')}"`,
+          `"${(r.bairro || '').replace(/"/g, '""')}"`,
           r.location_lat,
           r.location_lng
         ];
