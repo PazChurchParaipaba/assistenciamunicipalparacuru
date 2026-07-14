@@ -275,6 +275,9 @@ document.addEventListener('DOMContentLoaded', async () => {
       const card = document.createElement('div');
       card.className = 'card';
       card.style.position = 'relative'; // Para segurar o badge
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.height = '100%';
       card.innerHTML = `
         ${chatNotificationHtml}
         <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes do chat">
@@ -283,22 +286,30 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Chat Completo</span>
           </div>
         </div>
-        <div class="card-content">
+        <div class="card-content" style="display: flex; flex-direction: column; flex: 1;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <div>${tipoBadge}<br><span class="status-badge ${statusClass}" style="margin-bottom:0;">${report.status}</span></div>
             <span style="font-size: 0.8rem; color: var(--text-muted);">${date}</span>
           </div>
           <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${report.title}</h3>
+          ${report.tipo === 'Problema' ? `
           <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 500;">
             📍 ${report.endereco || 'Endereço não informado'} ${report.bairro ? ' - ' + report.bairro : ''}
-          </p>
+          </p>` : ''}
           <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
             <b>${report.secretaria}</b> ${report.subcategory ? `> ${report.subcategory}` : ''}<br>
             ${report.description}
           </p>
           
-          <div class="card-actions" style="display: flex; gap: 0.5rem; width: 100%;">
-            <input type="text" class="quick-reply-input" data-id="${report.id}" placeholder="Responder ao cidadão..." style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main);">
+          <div class="card-actions" style="display: flex; gap: 0.5rem; width: 100%; flex-wrap: wrap; margin-top: auto;">
+            ${report.tipo === 'Problema' ? `
+            <select class="quick-status-select" data-id="${report.id}" style="border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main);">
+              <option value="Aberto" ${report.status === 'Aberto' ? 'selected' : ''}>Aberto</option>
+              <option value="Em Andamento" ${report.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
+              <option value="Resolvido" ${report.status === 'Resolvido' ? 'selected' : ''}>Concluído</option>
+            </select>
+            ` : ''}
+            <input type="text" class="quick-reply-input" data-id="${report.id}" placeholder="Responder ao cidadão..." style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main); min-width: 150px;">
             <button class="btn btn-primary quick-reply-btn" data-id="${report.id}" style="padding: 0.5rem 1rem; width: auto; font-size: 0.9rem;">Enviar</button>
           </div>
         </div>
@@ -337,8 +348,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           user: serverEmail
         });
 
-        // Quando responde, podemos mudar o status para "Em Andamento" automaticamente
-        const newStatus = report.status === 'Aberto' ? 'Em Andamento' : report.status;
+        const statusSelect = document.querySelector(`.quick-status-select[data-id="${id}"]`);
+        const newStatus = statusSelect ? statusSelect.value : report.status;
 
         const { error } = await supabase
           .from('reports_paracuru')
@@ -356,6 +367,15 @@ document.addEventListener('DOMContentLoaded', async () => {
             loadDashboard(); // Atualiza a tela
           }, 1000);
         }
+      });
+    });
+
+    // Add event listeners to quick status select
+    document.querySelectorAll('.quick-status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const newStatus = e.target.value;
+        updateStatus(id, newStatus);
       });
     });
 
@@ -406,8 +426,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     document.getElementById('modalTitle').textContent = report.title.includes('App Cidadão') ? report.tipo : report.title;
-    document.getElementById('modalStatus').textContent = report.status;
-    document.getElementById('modalStatus').className = `status-badge status-${report.status.replace(' ', '').toLowerCase()}`;
+    const isProblema = report.tipo === 'Problema';
+    const statusElm = document.getElementById('modalStatus');
+    statusElm.textContent = report.status;
+    statusElm.className = `status-badge status-${report.status.replace(' ', '').toLowerCase()}`;
+    statusElm.style.display = isProblema ? 'inline-block' : 'none';
     
     // Trocamos o modalMeta para incluir o nome do cidadão
     document.getElementById('modalMeta').innerHTML = `${date} • ${report.secretaria} <span id="modalSubcategory" style="font-weight: 600; color: var(--primary);"></span><br><br><span style="background: rgba(79, 70, 229, 0.1); color: var(--primary); padding: 0.3rem 0.6rem; border-radius: 6px; font-weight: bold; font-size: 0.85rem;">👤 Enviado por: ${citizen.nome} ${citizen.whatsapp ? '(' + citizen.whatsapp + ')' : ''}</span>`;
@@ -435,11 +458,40 @@ document.addEventListener('DOMContentLoaded', async () => {
       document.getElementById('modalLocation').textContent = 'Coordenadas não fornecidas';
     }
     
+
+    const locationContainer = document.getElementById('modalLocationContainer');
+    if (locationContainer) {
+      locationContainer.style.display = isProblema ? 'block' : 'none';
+    }
+
+    const descricaoContainer = document.getElementById('modalDescricaoContainer');
+    if (descricaoContainer) {
+      descricaoContainer.style.display = isProblema ? 'block' : 'none';
+    }
+
+    const gestaoContainer = document.getElementById('modalGestaoContainer');
+    if (gestaoContainer) {
+      gestaoContainer.style.display = isProblema ? 'block' : 'none';
+    }
+    
+    const historyContainer = document.getElementById('modalHistoryContainer');
+    if (historyContainer) {
+      historyContainer.style.display = isProblema ? 'block' : 'none';
+    }
+    
     document.getElementById('modalResponsavel').value = report.responsavel || '';
     document.getElementById('modalNotas').value = report.notas_internas || '';
     
     if (typeof window.renderChat === 'function') {
-      window.renderChat(report.chat_history || []);
+      let chatToRender = report.chat_history ? [...report.chat_history] : [];
+      if (!isProblema && displayDescription) {
+        chatToRender.unshift({
+          sender: 'cidadao',
+          text: displayDescription,
+          date: report.created_at
+        });
+      }
+      window.renderChat(chatToRender);
     }
     
     const historyList = document.getElementById('modalHistory');
@@ -581,9 +633,51 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // Lógica de Visualização de Foto
+  const modalPhoto = document.getElementById('modalPhoto');
+  const photoViewerModal = document.getElementById('photoViewerModal');
+  const closePhotoViewer = document.getElementById('closePhotoViewer');
+  const fullScreenPhoto = document.getElementById('fullScreenPhoto');
+
+  if (modalPhoto && photoViewerModal) {
+    modalPhoto.style.cursor = 'zoom-in';
+    modalPhoto.addEventListener('click', () => {
+      fullScreenPhoto.src = modalPhoto.src;
+      photoViewerModal.style.display = 'flex';
+    });
+    closePhotoViewer.addEventListener('click', () => {
+      photoViewerModal.style.display = 'none';
+    });
+    photoViewerModal.addEventListener('click', (e) => {
+      if (e.target === photoViewerModal) {
+        photoViewerModal.style.display = 'none';
+      }
+    });
+  }
+
+  // Tecla ESC para fechar modais
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (photoViewerModal && photoViewerModal.style.display === 'flex') {
+        photoViewerModal.style.display = 'none';
+      } else if (detailsModal && detailsModal.style.display === 'flex') {
+        detailsModal.style.display = 'none';
+      }
+    }
+  });
+
   // Lógica do Chat
   const btnSendChat = document.getElementById('btnSendChat');
   const chatInput = document.getElementById('chatInput');
+
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (btnSendChat) btnSendChat.click();
+      }
+    });
+  }
 
   window.renderChat = function(chatArray) {
     const chatContainer = document.getElementById('chatContainer');
@@ -736,16 +830,74 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // IA Resumo Logic
+  const btnResumoIA = document.getElementById('btnResumoIA');
+  const iaResumoModal = document.getElementById('iaResumoModal');
+  const closeIaResumoModal = document.getElementById('closeIaResumoModal');
+  const iaResumoContent = document.getElementById('iaResumoContent');
+
+  if (btnResumoIA && iaResumoModal) {
+    btnResumoIA.addEventListener('click', async () => {
+      iaResumoModal.style.display = 'flex';
+      iaResumoContent.innerHTML = 'Gerando resumo inteligente com base nos últimos dados... ⏳<br><small style="color: var(--text-muted)">Isso pode levar alguns segundos.</small>';
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('ai_resumo_gerencial', {
+          body: { reports: latestReports }
+        });
+        
+        if (error) throw error;
+        if (data && data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+        
+        // Formatar Markdown básico para HTML
+        let htmlContent = (data.resumo || 'Nenhum resumo gerado.')
+           .replace(/\n/g, '<br>')
+           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+           .replace(/\*(.*?)\*/g, '<em>$1</em>');
+           
+        iaResumoContent.innerHTML = htmlContent;
+      } catch(err) {
+        console.error('Erro na IA:', err);
+        iaResumoContent.innerHTML = '<span style="color: var(--danger);">Falha ao gerar o resumo. A Inteligência Artificial pode não estar configurada no momento.</span>';
+      }
+    });
+    
+    closeIaResumoModal.addEventListener('click', () => {
+      iaResumoModal.style.display = 'none';
+    });
+  }
+
   // Clear Data
   btnClear.addEventListener('click', async () => {
     if(confirm('Isso apagará TODOS os dados do sistema. Tem certeza?')) {
+      // Passo 1: Buscar todos os IDs
+      const { data: reportsToDelete, error: fetchError } = await supabase
+        .from('reports_paracuru')
+        .select('id');
+        
+      if (fetchError) {
+         alert('Erro ao buscar relatos para apagar: ' + fetchError.message);
+         return;
+      }
+      
+      if (!reportsToDelete || reportsToDelete.length === 0) {
+         alert('Não há dados para limpar.');
+         return;
+      }
+
+      const ids = reportsToDelete.map(r => r.id);
+
+      // Passo 2: Deletar usando os IDs (PostgREST costuma bloquear neq para bulk delete)
       const { error } = await supabase
         .from('reports_paracuru')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+        .in('id', ids);
+
       if (error) {
          console.error('Erro ao limpar dados:', error);
+         alert('Erro ao limpar dados do banco. Verifique as permissões (RLS) no Supabase. Detalhe: ' + error.message);
       } else {
+         alert('Dados apagados com sucesso!');
          loadDashboard();
       }
     }
@@ -769,6 +921,25 @@ document.addEventListener('DOMContentLoaded', async () => {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'reports_paracuru' }, payload => {
       console.log('Change received!', payload);
       loadDashboard();
+      
+      // Se o modal estiver aberto e for do mesmo chamado, atualiza o chat e o status
+      // sem fechar o modal ou perder o texto que o servidor está digitando
+      if (currentReportId && payload.new && payload.new.id === currentReportId) {
+        const modal = document.getElementById('detailsModal');
+        if (modal && modal.style.display === 'flex') {
+          // Atualiza o status visualmente
+          const statusEl = document.getElementById('modalStatus');
+          if (statusEl) {
+            statusEl.textContent = payload.new.status;
+            statusEl.className = `status-badge status-${payload.new.status.replace(' ', '').toLowerCase()}`;
+          }
+          
+          // Atualiza o chat
+          if (typeof window.renderChat === 'function') {
+            window.renderChat(payload.new.chat_history || []);
+          }
+        }
+      }
     })
     .subscribe();
 
@@ -777,6 +948,187 @@ document.addEventListener('DOMContentLoaded', async () => {
     navigator.serviceWorker.register('service-worker.js')
       .then(reg => console.log('SW registrado no painel', reg))
       .catch(err => console.log('SW erro', err));
+  }
+
+  // --- Agenda do Secretário Logic ---
+  const btnManageAgenda = document.getElementById('btnManageAgenda');
+  const agendaModal = document.getElementById('agendaModal');
+  const closeAgendaModal = document.getElementById('closeAgendaModal');
+  const viewAgendamentosModal = document.getElementById('viewAgendamentosModal');
+  const closeViewAgendamentosModal = document.getElementById('closeViewAgendamentosModal');
+  
+  if (session && session.email === 'admin@paracuru.ce.gov.br') {
+    // if (btnManageAgenda) btnManageAgenda.style.display = 'inline-block';
+  }
+
+  if (btnManageAgenda) {
+    btnManageAgenda.addEventListener('click', () => {
+      agendaModal.style.display = 'flex';
+      loadAgendasAdmin();
+    });
+  }
+
+  if (closeAgendaModal) {
+    closeAgendaModal.addEventListener('click', () => {
+      agendaModal.style.display = 'none';
+    });
+  }
+  
+  if (closeViewAgendamentosModal) {
+    closeViewAgendamentosModal.addEventListener('click', () => {
+      viewAgendamentosModal.style.display = 'none';
+    });
+  }
+
+  const btnAddAgenda = document.getElementById('btnAddAgenda');
+  if (btnAddAgenda) {
+    btnAddAgenda.addEventListener('click', async () => {
+      const dataStr = document.getElementById('newAgendaDate').value;
+      const horariosStr = document.getElementById('newAgendaHorarios').value.trim();
+
+      if (!dataStr || !horariosStr) {
+        alert('Preencha a data e os horários!');
+        return;
+      }
+
+      // Calculate vagas from comma separated string
+      const horariosArr = horariosStr.split(',').map(h => h.trim()).filter(h => h);
+      const vagas = horariosArr.length;
+
+      if (vagas === 0) {
+        alert('Adicione pelo menos um horário válido.');
+        return;
+      }
+
+      const { error } = await supabase.from('agendas_secretario').insert([{
+        data: dataStr,
+        vagas_totais: vagas,
+        horarios: horariosStr,
+        vagas_ocupadas: 0
+      }]);
+
+      if (error) {
+        alert('Erro ao criar agenda. Certifique-se de ter rodado o script SQL.');
+        console.error(error);
+      } else {
+        document.getElementById('newAgendaDate').value = '';
+        document.getElementById('newAgendaHorarios').value = '';
+        loadAgendasAdmin();
+      }
+    });
+  }
+
+  async function loadAgendasAdmin() {
+    const listEl = document.getElementById('agendaList');
+    listEl.innerHTML = '<p style="color:var(--text-muted);">Carregando...</p>';
+
+    const { data, error } = await supabase
+      .from('agendas_secretario')
+      .select('*')
+      .order('data', { ascending: true });
+
+    if (error) {
+      listEl.innerHTML = '<p style="color:var(--danger);">Erro ao carregar agendas.</p>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      listEl.innerHTML = '<p style="color:var(--text-muted);">Nenhuma data configurada.</p>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    data.forEach(item => {
+      let dStr = item.data;
+      if(dStr.includes('T')) dStr = dStr.split('T')[0];
+      const parts = dStr.split('-');
+      const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+      const div = document.createElement('div');
+      div.style.padding = '1rem';
+      div.style.background = 'var(--bg-main)';
+      div.style.borderRadius = '8px';
+      div.style.border = '1px solid var(--border)';
+      div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <h4 style="color: var(--text);">${formattedDate}</h4>
+          <span style="background: var(--primary); color: white; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.8rem;">
+            ${item.vagas_ocupadas} / ${item.vagas_totais} vagas
+          </span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;"><b>Horários:</b> ${item.horarios || 'Não definido'}</p>
+        <button class="btn btn-secondary btn-view-inscritos" data-id="${item.id}" data-date="${formattedDate}" style="width: 100%; font-size: 0.9rem; padding: 0.5rem;">Ver Inscritos</button>
+      `;
+      listEl.appendChild(div);
+    });
+
+    document.querySelectorAll('.btn-view-inscritos').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.getAttribute('data-id');
+        const dateStr = e.target.getAttribute('data-date');
+        showInscritos(id, dateStr);
+      });
+    });
+  }
+
+  async function showInscritos(agendaId, dateStr) {
+    document.getElementById('viewAgendamentosSubtitle').textContent = `Data: ${dateStr}`;
+    const inscritosList = document.getElementById('inscritosList');
+    inscritosList.innerHTML = '<p style="color:var(--text-muted);">Carregando inscritos...</p>';
+    viewAgendamentosModal.style.display = 'flex';
+
+    // Fetch agendamentos
+    const { data: agendamentos, error: errAgendamentos } = await supabase
+      .from('agendamentos_cidadao')
+      .select('*')
+      .eq('agenda_id', agendaId);
+
+    if (errAgendamentos) {
+      inscritosList.innerHTML = '<p style="color:var(--danger);">Erro ao buscar inscritos.</p>';
+      return;
+    }
+
+    if (!agendamentos || agendamentos.length === 0) {
+      inscritosList.innerHTML = '<p style="color:var(--text-muted);">Nenhum cidadão agendado para esta data.</p>';
+      return;
+    }
+
+    // Fetch citizens details
+    const userIds = agendamentos.map(a => a.user_id);
+    const { data: profiles, error: errProfiles } = await supabase
+      .from('profiles')
+      .select('id, nome_completo, whatsapp')
+      .in('id', userIds);
+
+    const profilesMap = {};
+    if (profiles) {
+      profiles.forEach(p => {
+        profilesMap[p.id] = p;
+      });
+    }
+
+    inscritosList.innerHTML = '';
+    agendamentos.forEach(ag => {
+      const p = profilesMap[ag.user_id] || { nome_completo: 'Desconhecido', whatsapp: 'N/A' };
+      const li = document.createElement('li');
+      li.style.padding = '0.8rem';
+      li.style.border = '1px solid var(--border)';
+      li.style.borderRadius = '8px';
+      li.style.background = 'var(--bg-main)';
+      li.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="font-weight: bold; color: var(--text);">${p.nome_completo}</div>
+          <span style="background: var(--primary); color: white; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+            ⏱️ ${ag.horario_escolhido || 'Não escolhido'}
+          </span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">WhatsApp: ${p.whatsapp}</div>
+        <div style="font-size: 0.9rem; color: var(--text); background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px;">
+          <b>Pauta:</b> ${ag.pauta || 'Nenhuma pauta informada'}
+        </div>
+      `;
+      inscritosList.appendChild(li);
+    });
   }
 
   // Init

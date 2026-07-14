@@ -10,6 +10,10 @@
   
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <link rel="stylesheet" href="style.css">
+  
+  <!-- TensorFlow.js and COCO-SSD Model -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
 </head>
 <body>
   <button class="theme-toggle" id="themeToggle">🌙 Modo Escuro</button>
@@ -19,7 +23,10 @@
       <img src="logo_paracuru.png" alt="SEGOV PARACURU" class="app-logo">
       <div style="display: flex; justify-content: space-between; align-items: center;">
         <h1>Centro de Controle Operacional</h1>
-        <button id="btnLogout" class="btn btn-secondary" style="width: auto; padding: 0.5rem 1rem;">Sair</button>
+        <div style="display: flex; gap: 10px;">
+          <button id="btnARMode" class="btn" style="background-color: var(--primary); color: white; width: auto; padding: 0.5rem 1rem; cursor: pointer;">📷 Inspeção AR</button>
+          <button id="btnLogout" class="btn btn-secondary" style="width: auto; padding: 0.5rem 1rem;">Sair</button>
+        </div>
       </div>
       <p class="subtitle">Visão estratégica e gestão de chamados da população.</p>
     </header>
@@ -101,6 +108,7 @@
         <option value="Todos">Todos os Bairros</option>
       </select>
       <button id="btnManageResponsavel" class="btn btn-secondary" style="width: auto;">Gerenciar Responsáveis</button>
+      <button id="btnManageAgenda" class="btn btn-primary" style="width: auto; background: var(--secondary); border-color: var(--secondary); display: none;">Gerenciar Agenda Secretário</button>
       <button id="btnExportCSV" class="btn btn-primary" style="width: auto; background: var(--secondary); border-color: var(--secondary);">Exportar CSV</button>
       <button id="btnClear" class="btn btn-secondary" style="width: auto;">Esvaziar Dados</button>
     </div>
@@ -132,6 +140,11 @@
       <div style="border-top: 1px solid var(--border); padding-top: 1rem; margin-bottom: 1rem;">
         <label for="modalResponsavel" style="display: block; font-weight: bold; margin-bottom: 0.5rem; color: var(--text);">Responsável:</label>
         <select id="modalResponsavel" style="width: 100%; margin-bottom: 1rem;">
+           <option value="">Não atribuído</option>
+        </select>
+
+        <label for="modalTecnico" style="display: block; font-weight: bold; margin-bottom: 0.5rem; color: var(--text);">Técnico em Campo (App):</label>
+        <select id="modalTecnico" style="width: 100%; margin-bottom: 1rem;">
            <option value="">Não atribuído</option>
         </select>
         
@@ -171,6 +184,66 @@
       <ul id="responsavelList" style="list-style: none; padding: 0; margin: 0;">
         <!-- List will be populated here -->
       </ul>
+    </div>
+  </div>
+
+  <!-- Manage Agenda Modal -->
+  <div id="agendaModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1002; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 600px; max-height: 90vh; overflow-y: auto; position: relative;">
+      <button id="closeAgendaModal" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+      <h2 style="margin-bottom: 1.5rem; color: var(--text);">Agenda do Secretário</h2>
+      
+      <div style="background: var(--bg-main); padding: 1rem; border-radius: 8px; border: 1px solid var(--border); margin-bottom: 1.5rem;">
+        <h4 style="margin-bottom: 1rem; color: var(--text);">Nova Data de Atendimento</h4>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">Data:</label>
+          <input type="date" id="newAgendaDate" style="width: 100%; border: 1px solid var(--border); padding: 0.8rem; border-radius: 8px; background: transparent; color: var(--text);">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">Vagas Totais:</label>
+          <input type="number" id="newAgendaVagas" value="10" min="1" style="width: 100%; border: 1px solid var(--border); padding: 0.8rem; border-radius: 8px; background: transparent; color: var(--text);">
+        </div>
+        <div class="form-group" style="margin-bottom: 1rem;">
+          <label style="display: block; margin-bottom: 0.5rem; color: var(--text);">Programação do Dia:</label>
+          <textarea id="newAgendaProg" rows="3" placeholder="Ex: Manhã no gabinete, tarde com a população..." style="width: 100%; border: 1px solid var(--border); padding: 0.8rem; border-radius: 8px; background: transparent; color: var(--text);"></textarea>
+        </div>
+        <button id="btnAddAgenda" class="btn btn-primary" style="width: 100%;">Criar Dia de Atendimento</button>
+      </div>
+
+      <h3 style="margin-bottom: 1rem; color: var(--text);">Datas Configuradas</h3>
+      <div id="agendaList" style="display: flex; flex-direction: column; gap: 1rem;">
+        <!-- List will be populated here -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Visualizar Agendamentos Modal -->
+  <div id="viewAgendamentosModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); z-index: 1003; align-items: center; justify-content: center;">
+    <div class="modal-content" style="background: var(--bg-card); padding: 2rem; border-radius: 12px; width: 90%; max-width: 500px; max-height: 90vh; overflow-y: auto; position: relative;">
+      <button id="closeViewAgendamentosModal" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 1.5rem; cursor: pointer; color: var(--text-muted);">&times;</button>
+      <h2 style="margin-bottom: 1.5rem; color: var(--text);">Inscritos</h2>
+      <p id="viewAgendamentosSubtitle" style="color: var(--text-muted); margin-bottom: 1rem;"></p>
+      <ul id="inscritosList" style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 0.5rem;">
+        <!-- Lista de inscritos -->
+      </ul>
+    </div>
+  </div>
+
+  <!-- Fullscreen Photo Modal -->
+  <div id="photoViewerModal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.9); z-index: 2000; align-items: center; justify-content: center; cursor: zoom-out;">
+    <button id="closePhotoViewer" style="position: absolute; top: 20px; right: 20px; background: none; border: none; font-size: 2rem; color: white; cursor: pointer;">&times;</button>
+    <img id="fullScreenPhoto" src="" style="max-width: 95%; max-height: 95%; object-fit: contain; border-radius: 8px; cursor: default;">
+  </div>
+
+  <!-- AR Inspection Mode Container -->
+  <div id="ar-container">
+    <video id="ar-video" autoplay playsinline></video>
+    <canvas id="ar-canvas"></canvas>
+    <div id="ar-ui">
+      <div class="ar-header">
+        <div class="ar-status" id="ar-status-text">Carregando IA e Sensores...</div>
+        <button id="ar-btn-close" class="ar-btn-close">Fechar AR</button>
+      </div>
     </div>
   </div>
 

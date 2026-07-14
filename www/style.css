@@ -339,6 +339,8 @@ textarea {
   overflow: hidden;
   border: 1px solid var(--border-color);
   transition: transform 0.3s ease;
+  display: flex;
+  flex-direction: column;
 }
 
 .card:hover {
@@ -354,6 +356,9 @@ textarea {
 
 .card-content {
   padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  flex: 1;
 }
 
 .status-badge {
@@ -373,7 +378,7 @@ textarea {
 .card-actions {
   display: flex;
   gap: 0.5rem;
-  margin-top: 1rem;
+  margin-top: auto;
 }
 
 .card-actions select {

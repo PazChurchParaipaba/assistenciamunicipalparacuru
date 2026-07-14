@@ -84,6 +84,7 @@ document.addEventListener('DOMContentLoaded', () => {
   const btnActionDuvida = document.getElementById('btnActionDuvida');
   const btnActionFeedback = document.getElementById('btnActionFeedback');
   const btnActionOuvidoria = document.getElementById('btnActionOuvidoria');
+  const btnActionAgenda = document.getElementById('btnActionAgenda');
 
   const quickFormTitle = document.getElementById('quickFormTitle');
   const quickFormType = document.getElementById('quickFormType');
@@ -125,6 +126,155 @@ document.addEventListener('DOMContentLoaded', () => {
   if (btnActionDuvida) btnActionDuvida.addEventListener('click', () => showQuickForm('Duvida', '❓ Enviar Dúvida'));
   if (btnActionFeedback) btnActionFeedback.addEventListener('click', () => showQuickForm('Feedback', '💬 Enviar Feedback'));
   if (btnActionOuvidoria) btnActionOuvidoria.addEventListener('click', () => showQuickForm('Ouvidoria', '🏛️ Ouvidoria Geral'));
+
+  // --- Agenda Logic ---
+  const modalAgendaCidadao = document.getElementById('modalAgendaCidadao');
+  const closeModalAgendaCidadao = document.getElementById('closeModalAgendaCidadao');
+  const listaAgendasDisponiveis = document.getElementById('listaAgendasDisponiveis');
+
+  if (btnActionAgenda) {
+    btnActionAgenda.addEventListener('click', () => {
+      if (modalAgendaCidadao) {
+        modalAgendaCidadao.style.display = 'flex';
+        loadAgendasDisponiveis();
+      }
+    });
+  }
+
+  if (closeModalAgendaCidadao) {
+    closeModalAgendaCidadao.addEventListener('click', () => {
+      modalAgendaCidadao.style.display = 'none';
+    });
+  }
+
+  async function loadAgendasDisponiveis() {
+    if (!listaAgendasDisponiveis) return;
+    listaAgendasDisponiveis.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Carregando datas disponíveis...</p>';
+
+    // Hoje formatado como YYYY-MM-DD
+    const today = new Date().toISOString().split('T')[0];
+
+    const { data, error } = await supabase
+      .from('agendas_secretario')
+      .select('*')
+      .gte('data', today)
+      .order('data', { ascending: true });
+
+    if (error) {
+      listaAgendasDisponiveis.innerHTML = '<p style="color: var(--danger); text-align: center;">Erro ao carregar datas.</p>';
+      return;
+    }
+
+    const disponiveis = data.filter(a => a.vagas_ocupadas < a.vagas_totais);
+
+    if (disponiveis.length === 0) {
+      listaAgendasDisponiveis.innerHTML = '<p style="color: var(--text-muted); text-align: center;">Não há datas disponíveis para agendamento no momento.</p>';
+      return;
+    }
+
+    listaAgendasDisponiveis.innerHTML = '';
+    disponiveis.forEach(item => {
+      let dStr = item.data;
+      if(dStr.includes('T')) dStr = dStr.split('T')[0];
+      const parts = dStr.split('-');
+      const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+      const div = document.createElement('div');
+      div.style.background = 'var(--bg-main)';
+      div.style.padding = '1.2rem';
+      div.style.borderRadius = '12px';
+      div.style.border = '1px solid var(--border-color)';
+      
+      div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+          <h4 style="color: var(--primary); font-size: 1.1rem;">🗓️ ${formattedDate}</h4>
+          <span style="font-size: 0.85rem; background: var(--secondary); color: white; padding: 0.2rem 0.6rem; border-radius: 99px;">
+            Restam ${item.vagas_totais - item.vagas_ocupadas} vagas
+          </span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 1rem; line-height: 1.4;">
+          <strong>Programação:</strong> ${item.programacao}
+        </p>
+        <button class="btn btn-primary btn-agendar" data-id="${item.id}" style="width: 100%; padding: 0.8rem; font-size: 1rem;">Agendar Atendimento</button>
+      `;
+      listaAgendasDisponiveis.appendChild(div);
+    });
+
+    document.querySelectorAll('.btn-agendar').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const agendaId = e.target.getAttribute('data-id');
+        await agendarAtendimento(agendaId, e.target);
+      });
+    });
+  }
+
+  async function agendarAtendimento(agendaId, btnElement) {
+    const sessionData = localStorage.getItem('cidadaoSession');
+    const session = sessionData ? JSON.parse(sessionData) : null;
+    
+    if (!session) {
+      alert('Você precisa estar logado para agendar!');
+      return;
+    }
+
+    const originalText = btnElement.textContent;
+    btnElement.textContent = 'Aguarde...';
+    btnElement.disabled = true;
+
+    // Verificar se já tem agendamento para este dia (opcional, vamos apenas inserir)
+    const { data: existente } = await supabase
+      .from('agendamentos_cidadao')
+      .select('id')
+      .eq('agenda_id', agendaId)
+      .eq('user_id', session.id);
+
+    if (existente && existente.length > 0) {
+      alert('Você já agendou para esta data!');
+      btnElement.textContent = originalText;
+      btnElement.disabled = false;
+      return;
+    }
+
+    // Buscar vaga atual para incrementar (simplificado, sem lock robusto)
+    const { data: agenda } = await supabase
+      .from('agendas_secretario')
+      .select('vagas_ocupadas, vagas_totais')
+      .eq('id', agendaId)
+      .single();
+
+    if (agenda.vagas_ocupadas >= agenda.vagas_totais) {
+      alert('Vagas esgotadas para esta data!');
+      loadAgendasDisponiveis();
+      return;
+    }
+
+    const newVagasOcupadas = agenda.vagas_ocupadas + 1;
+
+    // Inserir agendamento
+    const { error: errInsert } = await supabase
+      .from('agendamentos_cidadao')
+      .insert([{
+        agenda_id: agendaId,
+        user_id: session.id
+      }]);
+
+    if (errInsert) {
+      alert('Erro ao agendar.');
+      btnElement.textContent = originalText;
+      btnElement.disabled = false;
+      return;
+    }
+
+    // Atualizar vagas
+    await supabase
+      .from('agendas_secretario')
+      .update({ vagas_ocupadas: newVagasOcupadas })
+      .eq('id', agendaId);
+
+    alert('Agendamento confirmado com sucesso!');
+    loadAgendasDisponiveis();
+  }
+  // --- Fim Agenda Logic ---
 
   const btnCancelQuickForm = document.getElementById('btnCancelQuickForm');
   if (btnCancelQuickForm) {
@@ -328,10 +478,14 @@ document.addEventListener('DOMContentLoaded', () => {
           btnMyLocation.style.color = '#fff';
         },
         (err) => {
-          alert('Erro ao obter GPS. Arraste o pino no mapa manualmente.');
+          console.warn(`GPS Error(${err.code}): ${err.message}`);
+          alert(`Erro ao obter GPS: ${err.message}. Verifique as permissões do navegador ou arraste o pino no mapa manualmente.`);
           btnMyLocation.textContent = '📍 Usar Minha Localização GPS';
-        }
+        },
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
       );
+    } else {
+      alert('Seu navegador não suporta geolocalização.');
     }
   });
 

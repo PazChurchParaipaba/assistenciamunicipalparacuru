@@ -14,6 +14,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggleLink = document.getElementById('toggleAuthMode');
   const groupNome = document.getElementById('groupNome');
   const groupSecretaria = document.getElementById('groupSecretaria');
+  const groupPerfil = document.getElementById('groupPerfil');
 
   let isLoginMode = true;
 
@@ -25,11 +26,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(isLoginMode) {
       groupNome.style.display = 'none';
       groupSecretaria.style.display = 'none';
+      if(groupPerfil) groupPerfil.style.display = 'none';
       submitBtn.textContent = 'Entrar no Painel';
       toggleLink.textContent = 'Novo servidor? Solicitar acesso';
     } else {
       groupNome.style.display = 'block';
       groupSecretaria.style.display = 'block';
+      if(groupPerfil) groupPerfil.style.display = 'block';
       submitBtn.textContent = 'Cadastrar Servidor';
       toggleLink.textContent = 'Já tem acesso? Entrar';
     }
@@ -43,6 +46,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     const password = document.getElementById('password').value.trim();
     const nome = document.getElementById('nome').value.trim();
     const secretaria = document.getElementById('secretaria').value;
+    const perfilObj = document.getElementById('perfil');
+    const perfil = perfilObj ? perfilObj.value : 'admin';
 
     if (!email || !password || (!isLoginMode && (!nome || !secretaria))) {
       errorMsg.textContent = 'Erro: Preencha todos os campos obrigatórios.';
@@ -68,14 +73,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         submitBtn.textContent = 'Entrar no Painel';
         submitBtn.disabled = false;
       } else {
-        // Salva a sessão no localStorage incluindo a secretaria
+        // Salva a sessão no localStorage incluindo a secretaria e perfil
         localStorage.setItem('servidorSession', JSON.stringify({ 
           id: data.id, 
           email: data.email, 
           nome: data.nome_completo,
-          secretaria: data.secretaria 
+          secretaria: data.secretaria,
+          perfil: data.perfil || 'admin'
         }));
-        window.location.href = 'painel.html';
+        
+        if (data.perfil === 'tecnico') {
+          window.location.href = 'tecnico.html';
+        } else {
+          window.location.href = 'painel.html';
+        }
       }
     } else {
       const { data, error } = await supabase
@@ -84,7 +95,8 @@ document.addEventListener('DOMContentLoaded', async () => {
           nome_completo: nome,
           email: email,
           password: password,
-          secretaria: secretaria
+          secretaria: secretaria,
+          perfil: perfil
         })
         .select()
         .single();
@@ -99,10 +111,15 @@ document.addEventListener('DOMContentLoaded', async () => {
           id: data.id, 
           email: data.email, 
           nome: data.nome_completo,
-          secretaria: data.secretaria 
+          secretaria: data.secretaria,
+          perfil: data.perfil || 'admin'
         }));
-        alert('Cadastro realizado! Bem-vindo(a).');
-        window.location.href = 'painel.html';
+        
+        if (data.perfil === 'tecnico') {
+          window.location.href = 'tecnico.html';
+        } else {
+          window.location.href = 'painel.html';
+        }
       }
     }
   });

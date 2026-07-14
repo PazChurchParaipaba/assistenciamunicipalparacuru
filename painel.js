@@ -254,6 +254,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const card = document.createElement('div');
       card.className = 'card';
+      card.style.position = 'relative';
+      card.style.display = 'flex';
+      card.style.flexDirection = 'column';
+      card.style.height = '100%';
       card.innerHTML = `
         <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes">
           ${cardImgHtml}
@@ -261,7 +265,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Detalhes</span>
           </div>
         </div>
-        <div class="card-content">
+        <div class="card-content" style="display: flex; flex-direction: column; flex: 1;">
           <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
             <div>${tipoBadge}<br><span class="status-badge ${statusClass}" style="margin-bottom:0;">${report.status}</span></div>
             <span style="font-size: 0.8rem; color: var(--text-muted);">${date}</span>
@@ -275,12 +279,16 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${report.description}
           </p>
           
-          <div class="card-actions">
-            <select class="status-update" data-id="${report.id}">
+          <div class="card-actions" style="display: flex; gap: 0.5rem; width: 100%; flex-wrap: wrap; margin-top: auto;">
+            ${report.tipo === 'Problema' ? `
+            <select class="quick-status-select" data-id="${report.id}" style="border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main);">
               <option value="Aberto" ${report.status === 'Aberto' ? 'selected' : ''}>Aberto</option>
               <option value="Em Andamento" ${report.status === 'Em Andamento' ? 'selected' : ''}>Em Andamento</option>
-              <option value="Resolvido" ${report.status === 'Resolvido' ? 'selected' : ''}>Resolvido</option>
+              <option value="Resolvido" ${report.status === 'Resolvido' ? 'selected' : ''}>Concluído</option>
             </select>
+            ` : ''}
+            <input type="text" class="quick-reply-input" data-id="${report.id}" placeholder="Responder ao cidadão..." style="flex: 1; border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; font-size: 0.9rem; background: var(--bg-main); color: var(--text-main); min-width: 150px;">
+            <button class="btn btn-primary quick-reply-btn" data-id="${report.id}" style="padding: 0.5rem 1rem; width: auto; font-size: 0.9rem;">Enviar</button>
           </div>
         </div>
       `;
@@ -341,6 +349,11 @@ document.addEventListener('DOMContentLoaded', async () => {
     document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
     
     document.getElementById('modalResponsavel').value = report.responsavel || '';
+    
+    const modalTecnico = document.getElementById('modalTecnico');
+    if (modalTecnico) {
+      modalTecnico.value = report.tecnico_id || '';
+    }
     document.getElementById('modalNotas').value = report.notas_internas || '';
     
     if (typeof window.renderChat === 'function') {
@@ -429,6 +442,25 @@ document.addEventListener('DOMContentLoaded', async () => {
       modalResponsavelSelect.appendChild(opt);
     });
     modalResponsavelSelect.value = currentVal;
+    
+    // --- LOAD TECNICOS (Novo) ---
+    const modalTecnicoSelect = document.getElementById('modalTecnico');
+    if (modalTecnicoSelect) {
+      let qTecnicos = supabase.from('servidores').select('*').eq('perfil', 'tecnico').order('nome_completo');
+      if (session.secretaria !== 'Todas') {
+        qTecnicos = qTecnicos.eq('secretaria', session.secretaria);
+      }
+      const { data: tecnicos } = await qTecnicos;
+      const currentTecnicoVal = modalTecnicoSelect.value;
+      modalTecnicoSelect.innerHTML = '<option value="">Não atribuído</option>';
+      (tecnicos || []).forEach(tec => {
+        const opt = document.createElement('option');
+        opt.value = tec.id;
+        opt.textContent = `${tec.nome_completo} (${tec.secretaria})`;
+        modalTecnicoSelect.appendChild(opt);
+      });
+      modalTecnicoSelect.value = currentTecnicoVal;
+    }
   }
 
   if (btnAddResponsavel) {
@@ -466,10 +498,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const responsavel = document.getElementById('modalResponsavel').value;
       const notas_internas = document.getElementById('modalNotas').value;
+      
+      const modalTecnicoSelect = document.getElementById('modalTecnico');
+      const tecnico_id = modalTecnicoSelect ? (modalTecnicoSelect.value || null) : null;
 
       const { error } = await supabase
         .from('reports_paracuru')
-        .update({ responsavel, notas_internas })
+        .update({ responsavel, notas_internas, tecnico_id })
         .eq('id', currentReportId);
 
       if (error) {
@@ -481,14 +516,57 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (report) {
           report.responsavel = responsavel;
           report.notas_internas = notas_internas;
+          report.tecnico_id = tecnico_id;
         }
       }
     });
   }
 
+  // Lógica de Visualização de Foto
+  const modalPhoto = document.getElementById('modalPhoto');
+  const photoViewerModal = document.getElementById('photoViewerModal');
+  const closePhotoViewer = document.getElementById('closePhotoViewer');
+  const fullScreenPhoto = document.getElementById('fullScreenPhoto');
+
+  if (modalPhoto && photoViewerModal) {
+    modalPhoto.style.cursor = 'zoom-in';
+    modalPhoto.addEventListener('click', () => {
+      fullScreenPhoto.src = modalPhoto.src;
+      photoViewerModal.style.display = 'flex';
+    });
+    closePhotoViewer.addEventListener('click', () => {
+      photoViewerModal.style.display = 'none';
+    });
+    photoViewerModal.addEventListener('click', (e) => {
+      if (e.target === photoViewerModal) {
+        photoViewerModal.style.display = 'none';
+      }
+    });
+  }
+
+  // Tecla ESC para fechar modais
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+      if (photoViewerModal && photoViewerModal.style.display === 'flex') {
+        photoViewerModal.style.display = 'none';
+      } else if (detailsModal && detailsModal.style.display === 'flex') {
+        detailsModal.style.display = 'none';
+      }
+    }
+  });
+
   // Lógica do Chat
   const btnSendChat = document.getElementById('btnSendChat');
   const chatInput = document.getElementById('chatInput');
+
+  if (chatInput) {
+    chatInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (btnSendChat) btnSendChat.click();
+      }
+    });
+  }
 
   window.renderChat = function(chatArray) {
     const chatContainer = document.getElementById('chatContainer');
@@ -644,13 +722,34 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Clear Data
   btnClear.addEventListener('click', async () => {
     if(confirm('Isso apagará TODOS os dados do sistema. Tem certeza?')) {
+      // Passo 1: Buscar todos os IDs
+      const { data: reportsToDelete, error: fetchError } = await supabase
+        .from('reports_paracuru')
+        .select('id');
+        
+      if (fetchError) {
+         alert('Erro ao buscar relatos para apagar: ' + fetchError.message);
+         return;
+      }
+      
+      if (!reportsToDelete || reportsToDelete.length === 0) {
+         alert('Não há dados para limpar.');
+         return;
+      }
+
+      const ids = reportsToDelete.map(r => r.id);
+
+      // Passo 2: Deletar usando os IDs (PostgREST costuma bloquear neq para bulk delete)
       const { error } = await supabase
         .from('reports_paracuru')
         .delete()
-        .neq('id', '00000000-0000-0000-0000-000000000000'); // Delete all rows
+        .in('id', ids);
+
       if (error) {
          console.error('Erro ao limpar dados:', error);
+         alert('Erro ao limpar dados do banco. Verifique as permissões (RLS) no Supabase. Detalhe: ' + error.message);
       } else {
+         alert('Dados apagados com sucesso!');
          loadDashboard();
       }
     }
@@ -674,6 +773,27 @@ document.addEventListener('DOMContentLoaded', async () => {
     .on('postgres_changes', { event: '*', schema: 'public', table: 'reports_paracuru' }, payload => {
       console.log('Change received!', payload);
       loadDashboard();
+      
+      // Se o modal estiver aberto e for do mesmo chamado, atualiza o chat e o status
+      // sem fechar o modal ou perder o texto que o servidor está digitando
+      if (currentReportId && payload.new && payload.new.id === currentReportId) {
+        const modal = document.getElementById('detailsModal');
+        if (modal && modal.style.display === 'flex') {
+          // Atualiza o status visualmente
+          const statusEl = document.getElementById('modalStatus');
+          if (statusEl) {
+            statusEl.textContent = payload.new.status;
+            const statusColor = payload.new.status === 'Aberto' ? 'var(--danger)' : (payload.new.status === 'Resolvido' ? 'var(--secondary)' : 'var(--warning)');
+            statusEl.style.background = `${statusColor}20`;
+            statusEl.style.color = statusColor;
+          }
+          
+          // Atualiza o chat
+          if (typeof window.renderChat === 'function') {
+            window.renderChat(payload.new.chat_history || []);
+          }
+        }
+      }
     })
     .subscribe();
 
@@ -683,6 +803,364 @@ document.addEventListener('DOMContentLoaded', async () => {
       .then(reg => console.log('SW registrado no painel', reg))
       .catch(err => console.log('SW erro', err));
   }
+
+  // --- Agenda do Secretário Logic ---
+  const btnManageAgenda = document.getElementById('btnManageAgenda');
+  const agendaModal = document.getElementById('agendaModal');
+  const closeAgendaModal = document.getElementById('closeAgendaModal');
+  const viewAgendamentosModal = document.getElementById('viewAgendamentosModal');
+  const closeViewAgendamentosModal = document.getElementById('closeViewAgendamentosModal');
+  
+  if (session && session.email === 'admin@paracuru.ce.gov.br') {
+    if (btnManageAgenda) btnManageAgenda.style.display = 'inline-block';
+  }
+
+  if (btnManageAgenda) {
+    btnManageAgenda.addEventListener('click', () => {
+      agendaModal.style.display = 'flex';
+      loadAgendasAdmin();
+    });
+  }
+
+  if (closeAgendaModal) {
+    closeAgendaModal.addEventListener('click', () => {
+      agendaModal.style.display = 'none';
+    });
+  }
+  
+  if (closeViewAgendamentosModal) {
+    closeViewAgendamentosModal.addEventListener('click', () => {
+      viewAgendamentosModal.style.display = 'none';
+    });
+  }
+
+  const btnAddAgenda = document.getElementById('btnAddAgenda');
+  if (btnAddAgenda) {
+    btnAddAgenda.addEventListener('click', async () => {
+      const dataStr = document.getElementById('newAgendaDate').value;
+      const vagas = parseInt(document.getElementById('newAgendaVagas').value);
+      const prog = document.getElementById('newAgendaProg').value.trim();
+
+      if (!dataStr || isNaN(vagas) || !prog) {
+        alert('Preencha todos os campos!');
+        return;
+      }
+
+      const { error } = await supabase.from('agendas_secretario').insert([{
+        data: dataStr,
+        vagas_totais: vagas,
+        programacao: prog,
+        vagas_ocupadas: 0
+      }]);
+
+      if (error) {
+        alert('Erro ao criar agenda. Certifique-se de ter rodado o script SQL.');
+        console.error(error);
+      } else {
+        document.getElementById('newAgendaDate').value = '';
+        document.getElementById('newAgendaProg').value = '';
+        loadAgendasAdmin();
+      }
+    });
+  }
+
+  async function loadAgendasAdmin() {
+    const listEl = document.getElementById('agendaList');
+    listEl.innerHTML = '<p style="color:var(--text-muted);">Carregando...</p>';
+
+    const { data, error } = await supabase
+      .from('agendas_secretario')
+      .select('*')
+      .order('data', { ascending: true });
+
+    if (error) {
+      listEl.innerHTML = '<p style="color:var(--danger);">Erro ao carregar agendas.</p>';
+      return;
+    }
+
+    if (!data || data.length === 0) {
+      listEl.innerHTML = '<p style="color:var(--text-muted);">Nenhuma data configurada.</p>';
+      return;
+    }
+
+    listEl.innerHTML = '';
+    data.forEach(item => {
+      // Create date format dd/mm/yyyy considering timezone issues if any, we just split the string
+      let dStr = item.data;
+      if(dStr.includes('T')) dStr = dStr.split('T')[0];
+      const parts = dStr.split('-');
+      const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+      const div = document.createElement('div');
+      div.style.padding = '1rem';
+      div.style.background = 'var(--bg-main)';
+      div.style.borderRadius = '8px';
+      div.style.border = '1px solid var(--border)';
+      div.innerHTML = `
+        <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+          <h4 style="color: var(--text);">${formattedDate}</h4>
+          <span style="background: var(--primary); color: white; padding: 0.2rem 0.6rem; border-radius: 99px; font-size: 0.8rem;">
+            ${item.vagas_ocupadas} / ${item.vagas_totais} vagas
+          </span>
+        </div>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">${item.programacao}</p>
+        <button class="btn btn-secondary btn-view-inscritos" data-id="${item.id}" data-date="${formattedDate}" style="width: 100%; font-size: 0.9rem; padding: 0.5rem;">Ver Inscritos</button>
+      `;
+      listEl.appendChild(div);
+    });
+
+    document.querySelectorAll('.btn-view-inscritos').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        const id = e.target.getAttribute('data-id');
+        const dateStr = e.target.getAttribute('data-date');
+        showInscritos(id, dateStr);
+      });
+    });
+  }
+
+  async function showInscritos(agendaId, dateStr) {
+    document.getElementById('viewAgendamentosSubtitle').textContent = `Data: ${dateStr}`;
+    const inscritosList = document.getElementById('inscritosList');
+    inscritosList.innerHTML = '<p style="color:var(--text-muted);">Carregando inscritos...</p>';
+    viewAgendamentosModal.style.display = 'flex';
+
+    // Fetch agendamentos
+    const { data: agendamentos, error: errAgendamentos } = await supabase
+      .from('agendamentos_cidadao')
+      .select('*')
+      .eq('agenda_id', agendaId);
+
+    if (errAgendamentos) {
+      inscritosList.innerHTML = '<p style="color:var(--danger);">Erro ao buscar inscritos.</p>';
+      return;
+    }
+
+    if (!agendamentos || agendamentos.length === 0) {
+      inscritosList.innerHTML = '<p style="color:var(--text-muted);">Nenhum cidadão agendado para esta data.</p>';
+      return;
+    }
+
+    // Fetch citizens details
+    const userIds = agendamentos.map(a => a.user_id);
+    const { data: profiles, error: errProfiles } = await supabase
+      .from('profiles')
+      .select('id, nome_completo, whatsapp')
+      .in('id', userIds);
+
+    const profilesMap = {};
+    if (profiles) {
+      profiles.forEach(p => {
+        profilesMap[p.id] = p;
+      });
+    }
+
+    inscritosList.innerHTML = '';
+    agendamentos.forEach(ag => {
+      const p = profilesMap[ag.user_id] || { nome_completo: 'Desconhecido', whatsapp: 'N/A' };
+      const li = document.createElement('li');
+      li.style.padding = '0.8rem';
+      li.style.border = '1px solid var(--border)';
+      li.style.borderRadius = '8px';
+      li.style.background = 'var(--bg-main)';
+      li.innerHTML = `
+        <div style="font-weight: bold; color: var(--text);">${p.nome_completo}</div>
+        <div style="font-size: 0.85rem; color: var(--text-muted);">WhatsApp: ${p.whatsapp}</div>
+      `;
+      inscritosList.appendChild(li);
+    });
+  }
+
+  // --- MODO INSPEÇÃO AR ---
+  const btnARMode = document.getElementById('btnARMode');
+  const arContainer = document.getElementById('ar-container');
+  const arVideo = document.getElementById('ar-video');
+  const arCanvas = document.getElementById('ar-canvas');
+  const arBtnClose = document.getElementById('ar-btn-close');
+  const arStatusText = document.getElementById('ar-status-text');
+  
+  let arStream = null;
+  let arModel = null;
+  let arAnimationId = null;
+  let arWatchId = null;
+  let arCurrentLat = null;
+  let arCurrentLon = null;
+  let arCurrentHeading = 0;
+  
+  if (btnARMode) {
+    btnARMode.addEventListener('click', async () => {
+      arContainer.style.display = 'block';
+      arStatusText.textContent = 'Solicitando Câmera e GPS...';
+      
+      try {
+        // Iniciar Câmera Traseira
+        arStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: 'environment' }
+        });
+        arVideo.srcObject = arStream;
+        
+        // Iniciar GPS
+        if (navigator.geolocation) {
+          arWatchId = navigator.geolocation.watchPosition((pos) => {
+            arCurrentLat = pos.coords.latitude;
+            arCurrentLon = pos.coords.longitude;
+          }, (err) => {
+            console.error('Erro de GPS', err);
+            arStatusText.textContent = 'Erro de GPS. Verifique permissões.';
+          }, { enableHighAccuracy: true });
+        }
+        
+        // Iniciar Bússola (Device Orientation)
+        window.addEventListener('deviceorientation', handleOrientation, true);
+        
+        arStatusText.textContent = 'Carregando IA (COCO-SSD)...';
+        
+        // Carregar Modelo
+        if (!arModel && window.cocoSsd) {
+          arModel = await cocoSsd.load();
+        }
+        
+        arStatusText.textContent = 'Modo AR Ativo! Apontando câmera...';
+        
+        // Ajustar Canvas
+        arVideo.onloadedmetadata = () => {
+          arCanvas.width = arVideo.videoWidth;
+          arCanvas.height = arVideo.videoHeight;
+          detectFrame();
+        };
+        
+      } catch (err) {
+        console.error('Erro ao iniciar AR', err);
+        arStatusText.textContent = 'Erro ao iniciar AR: ' + err.message;
+      }
+    });
+  }
+  
+  if (arBtnClose) {
+    arBtnClose.addEventListener('click', stopARMode);
+  }
+  
+  function stopARMode() {
+    arContainer.style.display = 'none';
+    if (arStream) {
+      arStream.getTracks().forEach(t => t.stop());
+      arStream = null;
+    }
+    if (arAnimationId) {
+      cancelAnimationFrame(arAnimationId);
+    }
+    if (arWatchId) {
+      navigator.geolocation.clearWatch(arWatchId);
+    }
+    window.removeEventListener('deviceorientation', handleOrientation, true);
+  }
+  
+  function handleOrientation(event) {
+    let heading = event.alpha; // Para android
+    if (event.webkitCompassHeading) {
+      heading = event.webkitCompassHeading;
+    } else if (heading !== null) {
+      heading = 360 - heading; 
+    }
+    arCurrentHeading = heading || 0;
+  }
+  
+  // Fórmula Haversine para calcular distância em metros
+  function getDistance(lat1, lon1, lat2, lon2) {
+    const R = 6371e3; // metres
+    const p1 = lat1 * Math.PI/180;
+    const p2 = lat2 * Math.PI/180;
+    const dp = (lat2-lat1) * Math.PI/180;
+    const dl = (lon2-lon1) * Math.PI/180;
+    const a = Math.sin(dp/2) * Math.sin(dp/2) +
+              Math.cos(p1) * Math.cos(p2) *
+              Math.sin(dl/2) * Math.sin(dl/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  }
+  
+  // Calcular ângulo entre duas coordenadas
+  function getBearing(startLat, startLng, destLat, destLng) {
+    startLat = startLat * Math.PI / 180;
+    startLng = startLng * Math.PI / 180;
+    destLat = destLat * Math.PI / 180;
+    destLng = destLng * Math.PI / 180;
+    
+    let y = Math.sin(destLng - startLng) * Math.cos(destLat);
+    let x = Math.cos(startLat) * Math.sin(destLat) -
+            Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
+    let brng = Math.atan2(y, x) * 180 / Math.PI;
+    return (brng + 360) % 360;
+  }
+  
+  function drawARMarkers(ctx) {
+    // Remover markers HTML antigos
+    document.querySelectorAll('.ar-marker').forEach(el => el.remove());
+    
+    if (!arCurrentLat || !arCurrentLon) return;
+    
+    // Usa latestReports (do escopo pai)
+    const nearbyReports = latestReports.filter(r => r.latitude && r.longitude && r.status !== 'Resolvido');
+    
+    const uiContainer = document.getElementById('ar-ui');
+    
+    nearbyReports.forEach(report => {
+      const dist = getDistance(arCurrentLat, arCurrentLon, report.latitude, report.longitude);
+      if (dist < 1000) { // dentro de 1000 metros
+        const bearing = getBearing(arCurrentLat, arCurrentLon, report.latitude, report.longitude);
+        
+        let angleDiff = bearing - arCurrentHeading;
+        if (angleDiff < -180) angleDiff += 360;
+        if (angleDiff > 180) angleDiff -= 360;
+        
+        if (Math.abs(angleDiff) < 45) {
+          const screenX = 50 + (angleDiff / 45) * 50; 
+          
+          const markerEl = document.createElement('div');
+          markerEl.className = 'ar-marker';
+          markerEl.textContent = `${report.tipo || 'Problema'} (${Math.round(dist)}m)`;
+          markerEl.style.left = `${screenX}%`;
+          markerEl.style.top = `${50 + (dist / 1000) * 20}%`;
+          
+          uiContainer.appendChild(markerEl);
+        }
+      }
+    });
+  }
+  
+  async function detectFrame() {
+    if (!arModel || arContainer.style.display === 'none') return;
+    
+    arCanvas.width = arVideo.videoWidth;
+    arCanvas.height = arVideo.videoHeight;
+    const ctx = arCanvas.getContext('2d');
+    ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
+    
+    try {
+      const predictions = await arModel.detect(arVideo);
+      
+      predictions.forEach(pred => {
+        if (pred.score > 0.5) {
+          const [x, y, width, height] = pred.bbox;
+          
+          ctx.strokeStyle = '#00FFFF';
+          ctx.lineWidth = 2;
+          ctx.strokeRect(x, y, width, height);
+          
+          ctx.fillStyle = '#00FFFF';
+          ctx.font = '16px Arial';
+          ctx.fillText(`${pred.class} (${Math.round(pred.score * 100)}%)`, x, y > 20 ? y - 5 : 15);
+        }
+      });
+      
+      drawARMarkers(ctx);
+      
+    } catch (e) {
+      console.warn("IA frame skip", e);
+    }
+    
+    arAnimationId = requestAnimationFrame(detectFrame);
+  }
+  // --- FIM MODO INSPEÇÃO AR ---
 
   // Init
   initMap();
