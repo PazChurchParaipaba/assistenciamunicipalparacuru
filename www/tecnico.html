@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>App do Técnico - SEGOV</title>
+  
+  <link rel="icon" href="logo_paracuru.png" type="image/png">
+  <link rel="stylesheet" href="style.css">
+  
+  <!-- TensorFlow.js and COCO-SSD Model para Modo AR -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@3.21.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.2/dist/coco-ssd.min.js"></script>
+  
+  <style>
+    /* Estilos Específicos para o Técnico (Mobile First) */
+    .tech-header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    
+    .tech-logo {
+      width: 70px;
+      margin-bottom: 0.5rem;
+    }
+    
+    .btn-ar-huge {
+      background: linear-gradient(135deg, var(--primary), #4338ca);
+      color: white;
+      width: 100%;
+      padding: 1.5rem;
+      font-size: 1.2rem;
+      font-weight: bold;
+      border-radius: 16px;
+      border: none;
+      box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+      cursor: pointer;
+      margin-bottom: 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+    
+    .task-card {
+      background: var(--card-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+    }
+    
+    .task-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5rem;
+    }
+    
+    .task-type {
+      font-weight: bold;
+      color: var(--primary);
+    }
+    
+    .task-status {
+      font-size: 0.8rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      background: var(--warning);
+      color: white;
+    }
+    
+    .task-address {
+      font-size: 0.9rem;
+      color: var(--text-muted);
+      margin-bottom: 1rem;
+    }
+    
+    .btn-resolve {
+      width: 100%;
+      background: var(--secondary);
+      color: white;
+      border: none;
+      padding: 0.8rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    
+    /* AR Mode Styles */
+    #ar-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      z-index: 9999;
+    }
+    #ar-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #ar-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10000;
+    }
+    #ar-ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10001;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem;
+    }
+    .ar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: auto;
+    }
+    .ar-status {
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      backdrop-filter: blur(4px);
+    }
+    .ar-btn-close {
+      background: var(--danger);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
+  </style>
+</head>
+<body>
+  <div class="container" style="padding: 1.5rem; max-width: 600px; margin: 0 auto;">
+    
+    <div style="display: flex; justify-content: space-between; margin-bottom: 1rem;">
+      <button class="theme-toggle" id="themeToggle" style="position: static; margin: 0; padding: 0.5rem;">🌙</button>
+      <button id="btnLogout" class="btn btn-secondary" style="padding: 0.5rem 1rem;">Sair</button>
+    </div>
+
+    <header class="tech-header">
+      <img src="logo_paracuru.png" alt="SEGOV PARACURU" class="tech-logo">
+      <h2 id="techNameTitle">Olá, Técnico</h2>
+      <p class="subtitle" style="font-size: 0.9rem;">Meus chamados em campo</p>
+    </header>
+
+    <button id="btnARMode" class="btn-ar-huge">
+      <span>📷</span>
+      Abrir Inspeção AR
+    </button>
+
+    <h3 style="margin-bottom: 1rem;">Tarefas Atribuídas a Mim</h3>
+    <div id="tasksList">
+      <p style="text-align: center; color: var(--text-muted);">Carregando tarefas...</p>
+    </div>
+
+  </div>
+
+  <!-- AR Inspection Mode Container -->
+  <div id="ar-container">
+    <video id="ar-video" autoplay playsinline></video>
+    <canvas id="ar-canvas"></canvas>
+    <div id="ar-ui">
+      <div class="ar-header">
+        <div class="ar-status" id="ar-status-text">Carregando IA e Sensores...</div>
+        <button id="ar-btn-close" class="ar-btn-close">Fechar AR</button>
+      </div>
+    </div>
+  <!-- Modal de Resolução (Câmera + IA) -->
+  <div id="resolve-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 1rem;">
+    <h3 style="margin-bottom: 1rem; color: #fff;">Validar Resolução do Problema</h3>
+    <p style="margin-bottom: 1rem; text-align: center; font-size: 0.9rem;" id="resolve-status-text">Tire uma foto do local consertado para a IA validar.</p>
+    
+    <div style="position: relative; width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; background: #000;">
+      <video id="resolve-video" autoplay playsinline style="width: 100%; display: block;"></video>
+      <canvas id="resolve-canvas" style="display: none;"></canvas>
+      <img id="resolve-preview" style="display: none; width: 100%;" />
+    </div>
+
+    <div style="display: flex; gap: 1rem; width: 100%; max-width: 400px;">
+      <button id="btn-take-photo" class="btn btn-primary" style="flex: 1; padding: 1rem; font-size: 1.2rem;">📸 Capturar Foto</button>
+      <button id="btn-send-validation" class="btn btn-secondary" style="flex: 1; display: none; background: #10b981; color: white; border: none;">✅ Enviar IA</button>
+    </div>
+    <div style="display: flex; gap: 1rem; width: 100%; max-width: 400px; margin-top: 1rem;">
+      <button id="btn-retake-photo" class="btn btn-secondary" style="flex: 1; display: none; border-color: white; color: white;">🔄 Refazer</button>
+      <button id="btn-close-resolve" class="btn btn-secondary" style="flex: 1; border-color: var(--danger); color: var(--danger);">Cancelar</button>
+    </div>
+  </div>
+
+  <script type="module" src="tecnico.js"></script>
+</body>
+</html>

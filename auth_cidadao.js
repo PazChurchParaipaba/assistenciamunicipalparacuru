@@ -30,11 +30,18 @@ document.addEventListener('DOMContentLoaded', async () => {
       const wizardForm = document.getElementById('wizardForm');
       const stepper = document.getElementById('stepperIndicator');
       const quickForm = document.getElementById('quickForm');
+      const btnActionAcompanhar = document.getElementById('btnActionAcompanhar');
       
       if (actionMenu) actionMenu.style.display = 'grid';
       if (wizardForm) wizardForm.style.display = 'none';
       if (stepper) stepper.style.display = 'none';
       if (quickForm) quickForm.style.display = 'none';
+      
+      if (btnActionAcompanhar) {
+        btnActionAcompanhar.addEventListener('click', () => {
+          showMeusRelatosModal(session.id, null);
+        });
+      }
       
       setupCitizenRealtime(session.id);
     } else {
@@ -49,6 +56,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       const wizardForm = document.getElementById('wizardForm');
       const stepper = document.getElementById('stepperIndicator');
       const quickForm = document.getElementById('quickForm');
+      const btnActionAcompanhar = document.getElementById('btnActionAcompanhar');
       if (actionMenu) actionMenu.style.display = 'none';
       if (wizardForm) wizardForm.style.display = 'none';
       if (stepper) stepper.style.display = 'none';
@@ -196,12 +204,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
-  async function showMeusRelatosModal(userId) {
+  async function showMeusRelatosModal(userId, filterType = null) {
+    const modalTitle = 'Meus Relatos e Chats';
     const modalHtml = `
       <div id="relatosModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 9999; animation: fadeIn 0.3s ease;">
         <div style="background: var(--card-bg); padding: 2.5rem; border-radius: 24px; width: 90%; max-width: 600px; max-height: 85vh; overflow-y: auto; position: relative; box-shadow: var(--shadow-lg); border: 1px solid var(--border-color); backdrop-filter: blur(12px); animation: slideUp 0.4s ease-out;">
           <button id="closeRelatosModal" style="position: absolute; top: 15px; right: 15px; background: none; border: none; font-size: 2rem; cursor: pointer; color: var(--text-muted); transition: color 0.3s;">&times;</button>
-          <h2 style="margin-bottom: 2rem; color: var(--text-main); font-size: 1.8rem; font-weight: 700; text-align: center;">Meus Relatos</h2>
+          <h2 style="margin-bottom: 2rem; color: var(--text-main); font-size: 1.8rem; font-weight: 700; text-align: center;">${modalTitle}</h2>
           <div id="relatosList" style="display: flex; flex-direction: column; gap: 1.2rem;">
             <p style="text-align: center; color: var(--text-muted);">Carregando...</p>
           </div>
@@ -213,11 +222,17 @@ document.addEventListener('DOMContentLoaded', async () => {
     const closeModal = () => document.getElementById('relatosModal').remove();
     document.getElementById('closeRelatosModal').addEventListener('click', closeModal);
 
-    const { data: reports, error } = await supabase
+    let query = supabase
       .from('reports_paracuru')
       .select('*')
       .eq('user_id', userId)
       .order('created_at', { ascending: false });
+
+    if (filterType) {
+      query = query.eq('tipo', filterType);
+    }
+
+    const { data: reports, error } = await query;
 
     const listContainer = document.getElementById('relatosList');
     
@@ -263,6 +278,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   function openCidadaoChatModal(report) {
+    window.currentCidadaoChatReport = report;
     const modalHtml = `
       <div id="cidadaoChatModal" style="position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(8px); display: flex; align-items: center; justify-content: center; z-index: 10000; animation: fadeIn 0.3s ease;">
         <div style="background: var(--card-bg); padding: 1.5rem; border-radius: 20px; width: 90%; max-width: 500px; max-height: 90vh; display: flex; flex-direction: column; position: relative;">
@@ -285,6 +301,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     document.getElementById('closeCidadaoChat').addEventListener('click', () => {
       document.getElementById('cidadaoChatModal').remove();
+      window.currentCidadaoChatReport = null;
+      window.renderCidadaoChatMessages = null;
     });
 
     const chatContainer = document.getElementById('cidadaoChatContainer');
@@ -293,7 +311,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     function renderMessages() {
       chatContainer.innerHTML = '';
-      const chatArray = report.chat_history || [];
+      const chatArray = window.currentCidadaoChatReport.chat_history || [];
       if (chatArray.length === 0) {
         chatContainer.innerHTML = '<p style="color: var(--text-muted); text-align: center; margin-top: 2rem;">Envie uma mensagem para a secretaria.</p>';
         return;
@@ -305,9 +323,12 @@ document.addEventListener('DOMContentLoaded', async () => {
         const color = isMe ? '#fff' : 'var(--text-main)';
         const d = new Date(msg.date).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 
+        let senderName = msg.senderName || (msg.sender === 'tecnico' ? 'Técnico Responsável' : 'Prefeitura');
+        if (isMe) senderName = 'Você';
+
         chatContainer.innerHTML += `
           <div style="align-self: ${align}; background: ${bg}; color: ${color}; padding: 0.5rem 1rem; border-radius: 12px; max-width: 85%; border: 1px solid var(--border-color);">
-            <div style="font-size: 0.7rem; opacity: 0.8; margin-bottom: 0.2rem;">${isMe ? 'Você' : 'Secretaria'} • ${d}</div>
+            <div style="font-size: 0.7rem; opacity: 0.8; margin-bottom: 0.2rem;">${senderName} • ${d}</div>
             <div style="font-size: 0.95rem;">${msg.text}</div>
           </div>
         `;
@@ -321,8 +342,12 @@ document.addEventListener('DOMContentLoaded', async () => {
       const text = chatInput.value.trim();
       if (!text) return;
       
+      const sessionData = localStorage.getItem('cidadaoSession');
+      const session = sessionData ? JSON.parse(sessionData) : {};
+      
       const newMsg = {
         sender: 'cidadao',
+        senderName: session.nome || 'Cidadão',
         text: text,
         date: new Date().toISOString()
       };
@@ -337,11 +362,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       if (!error) {
         chatInput.value = '';
+        window.currentCidadaoChatReport.chat_history = chatHistory;
         renderMessages();
       } else {
         alert('Erro ao enviar mensagem.');
       }
     });
+    
+    window.renderCidadaoChatMessages = renderMessages;
   }
 
   function setupCitizenRealtime(userId) {
@@ -361,8 +389,15 @@ document.addEventListener('DOMContentLoaded', async () => {
         const newChatLen = newRecord.chat_history ? newRecord.chat_history.length : 0;
         if (newChatLen > oldChatLen) {
            const lastMsg = newRecord.chat_history[newChatLen - 1];
-           if (lastMsg.sender === 'secretaria') {
-             sendLocalNotification(`Nova Mensagem da Secretaria`, lastMsg.text);
+           if (lastMsg.sender === 'secretaria' || lastMsg.sender === 'tecnico') {
+             sendLocalNotification(`Nova Mensagem da ${lastMsg.sender === 'tecnico' ? 'Técnico' : 'Secretaria'}`, lastMsg.text);
+           }
+           
+           if (window.currentCidadaoChatReport && window.currentCidadaoChatReport.id === newRecord.id) {
+             window.currentCidadaoChatReport.chat_history = newRecord.chat_history;
+             if (typeof window.renderCidadaoChatMessages === 'function') {
+               window.renderCidadaoChatMessages();
+             }
            }
         }
       })

@@ -165,50 +165,139 @@ document.addEventListener('DOMContentLoaded', () => {
       return;
     }
 
-    const disponiveis = data.filter(a => a.vagas_ocupadas < a.vagas_totais);
-
-    if (disponiveis.length === 0) {
-      listaAgendasDisponiveis.innerHTML = '<p style="color: var(--text-muted); text-align: center;">Não há datas disponíveis para agendamento no momento.</p>';
+    if (data.length === 0) {
+      listaAgendasDisponiveis.innerHTML = '<p style="color: var(--text-muted); text-align: center;">Não há datas configuradas no momento.</p>';
       return;
     }
 
-    listaAgendasDisponiveis.innerHTML = '';
-    disponiveis.forEach(item => {
+    listaAgendasDisponiveis.innerHTML = '<div id="calendarioGrid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 1rem;"></div>';
+    const grid = document.getElementById('calendarioGrid');
+
+    data.forEach(item => {
       let dStr = item.data;
       if(dStr.includes('T')) dStr = dStr.split('T')[0];
       const parts = dStr.split('-');
-      const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+      const formattedDate = `${parts[2]}/${parts[1]}`; // DD/MM
+      const isEsgotado = item.vagas_ocupadas >= item.vagas_totais;
 
       const div = document.createElement('div');
-      div.style.background = 'var(--bg-main)';
-      div.style.padding = '1.2rem';
+      div.style.background = isEsgotado ? 'var(--warning)' : 'var(--primary)';
+      div.style.color = 'white';
+      div.style.padding = '1rem';
       div.style.borderRadius = '12px';
-      div.style.border = '1px solid var(--border-color)';
+      div.style.textAlign = 'center';
+      div.style.cursor = isEsgotado ? 'not-allowed' : 'pointer';
+      div.style.transition = 'transform 0.2s';
+      div.style.boxShadow = '0 4px 6px rgba(0,0,0,0.1)';
       
-      div.innerHTML = `
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-          <h4 style="color: var(--primary); font-size: 1.1rem;">🗓️ ${formattedDate}</h4>
-          <span style="font-size: 0.85rem; background: var(--secondary); color: white; padding: 0.2rem 0.6rem; border-radius: 99px;">
-            Restam ${item.vagas_totais - item.vagas_ocupadas} vagas
-          </span>
-        </div>
-        <p style="font-size: 0.9rem; color: var(--text-main); margin-bottom: 1rem; line-height: 1.4;">
-          <strong>Programação:</strong> ${item.programacao}
-        </p>
-        <button class="btn btn-primary btn-agendar" data-id="${item.id}" style="width: 100%; padding: 0.8rem; font-size: 1rem;">Agendar Atendimento</button>
-      `;
-      listaAgendasDisponiveis.appendChild(div);
-    });
+      div.onmouseover = () => { if(!isEsgotado) div.style.transform = 'scale(1.05)'; };
+      div.onmouseout = () => { if(!isEsgotado) div.style.transform = 'scale(1)'; };
 
-    document.querySelectorAll('.btn-agendar').forEach(btn => {
-      btn.addEventListener('click', async (e) => {
-        const agendaId = e.target.getAttribute('data-id');
-        await agendarAtendimento(agendaId, e.target);
-      });
+      div.innerHTML = `
+        <h3 style="margin-bottom: 0.5rem; font-size: 1.5rem;">${formattedDate}</h3>
+        <p style="font-size: 0.8rem; font-weight: bold;">
+          ${isEsgotado ? 'Esgotado' : (item.vagas_totais - item.vagas_ocupadas) + ' vagas'}
+        </p>
+      `;
+
+      if (!isEsgotado) {
+        div.addEventListener('click', () => showTimeSelection(item));
+      }
+      grid.appendChild(div);
     });
   }
 
-  async function agendarAtendimento(agendaId, btnElement) {
+  async function showTimeSelection(agendaItem) {
+    listaAgendasDisponiveis.innerHTML = '<p style="text-align: center; color: var(--text-muted);">Carregando horários...</p>';
+
+    // Obter horários já agendados para esta data
+    const { data: agendamentos, error } = await supabase
+      .from('agendamentos_cidadao')
+      .select('horario_escolhido')
+      .eq('agenda_id', agendaItem.id);
+
+    const takenTimes = agendamentos ? agendamentos.map(a => a.horario_escolhido) : [];
+    
+    // Todos os horários da agenda
+    const allTimes = (agendaItem.horarios || '').split(',').map(h => h.trim()).filter(h => h);
+    
+    let dStr = agendaItem.data;
+    if(dStr.includes('T')) dStr = dStr.split('T')[0];
+    const parts = dStr.split('-');
+    const formattedDate = `${parts[2]}/${parts[1]}/${parts[0]}`;
+
+    listaAgendasDisponiveis.innerHTML = `
+      <button id="btnVoltarAgenda" class="btn" style="background: var(--bg-main); color: var(--text-main); margin-bottom: 1rem;">&larr; Voltar para Datas</button>
+      <h3 style="color: var(--primary); margin-bottom: 1rem; text-align: center;">📅 ${formattedDate}</h3>
+      <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 0.5rem;">Escolha um horário:</p>
+      <div id="timeChips" style="display: flex; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 1.5rem;"></div>
+      
+      <div id="pautaContainer" style="display: none;">
+        <label style="display: block; margin-bottom: 0.5rem; font-weight: bold; color: var(--text-main);">Pauta da Reunião:</label>
+        <textarea id="pautaInput" rows="3" placeholder="Qual será o assunto principal?" style="width: 100%; border-radius: 8px; border: 1px solid var(--border-color); padding: 0.8rem; background: var(--bg-main); color: var(--text-main); margin-bottom: 1rem;"></textarea>
+        <button id="btnConfirmarAgendamento" class="btn btn-primary" style="width: 100%;">Confirmar Agendamento</button>
+      </div>
+    `;
+
+    document.getElementById('btnVoltarAgenda').addEventListener('click', loadAgendasDisponiveis);
+
+    const timeChips = document.getElementById('timeChips');
+    const pautaContainer = document.getElementById('pautaContainer');
+    let selectedTime = null;
+
+    if (allTimes.length === 0) {
+      timeChips.innerHTML = '<p style="color:var(--text-muted);">Nenhum horário definido pelo Secretário.</p>';
+      return;
+    }
+
+    allTimes.forEach(time => {
+      const isTaken = takenTimes.includes(time);
+      const chip = document.createElement('div');
+      chip.textContent = time;
+      chip.style.padding = '0.5rem 1rem';
+      chip.style.borderRadius = '99px';
+      chip.style.fontWeight = 'bold';
+      chip.style.cursor = isTaken ? 'not-allowed' : 'pointer';
+      
+      if (isTaken) {
+        chip.style.background = 'var(--bg-main)';
+        chip.style.color = 'var(--text-muted)';
+        chip.style.border = '1px solid var(--border-color)';
+        chip.style.textDecoration = 'line-through';
+      } else {
+        chip.style.background = 'var(--secondary)';
+        chip.style.color = 'white';
+        chip.style.border = '1px solid var(--secondary)';
+        chip.style.boxShadow = '0 2px 4px rgba(0,0,0,0.1)';
+        
+        chip.addEventListener('click', () => {
+          // Reset all available chips
+          Array.from(timeChips.children).forEach(c => {
+            if (c.style.cursor !== 'not-allowed') {
+              c.style.background = 'var(--secondary)';
+              c.style.color = 'white';
+            }
+          });
+          // Highlight selected
+          chip.style.background = 'var(--primary)';
+          selectedTime = time;
+          pautaContainer.style.display = 'block';
+        });
+      }
+      timeChips.appendChild(chip);
+    });
+
+    document.getElementById('btnConfirmarAgendamento').addEventListener('click', async (e) => {
+      const pauta = document.getElementById('pautaInput').value.trim();
+      if (!pauta) {
+        alert('Por favor, informe a pauta da reunião.');
+        return;
+      }
+      await agendarAtendimento(agendaItem.id, selectedTime, pauta, e.target);
+    });
+  }
+
+  async function agendarAtendimento(agendaId, horario, pauta, btnElement) {
     const sessionData = localStorage.getItem('cidadaoSession');
     const session = sessionData ? JSON.parse(sessionData) : null;
     
@@ -221,7 +310,7 @@ document.addEventListener('DOMContentLoaded', () => {
     btnElement.textContent = 'Aguarde...';
     btnElement.disabled = true;
 
-    // Verificar se já tem agendamento para este dia (opcional, vamos apenas inserir)
+    // Verificar se já tem agendamento para este dia (opcional, ou podemos deixar marcar múltiplos, mas o normal é 1)
     const { data: existente } = await supabase
       .from('agendamentos_cidadao')
       .select('id')
@@ -229,13 +318,13 @@ document.addEventListener('DOMContentLoaded', () => {
       .eq('user_id', session.id);
 
     if (existente && existente.length > 0) {
-      alert('Você já agendou para esta data!');
+      alert('Você já possui um agendamento para esta data!');
       btnElement.textContent = originalText;
       btnElement.disabled = false;
       return;
     }
 
-    // Buscar vaga atual para incrementar (simplificado, sem lock robusto)
+    // Buscar vaga atual para incrementar
     const { data: agenda } = await supabase
       .from('agendas_secretario')
       .select('vagas_ocupadas, vagas_totais')
@@ -255,7 +344,9 @@ document.addEventListener('DOMContentLoaded', () => {
       .from('agendamentos_cidadao')
       .insert([{
         agenda_id: agendaId,
-        user_id: session.id
+        user_id: session.id,
+        horario_escolhido: horario,
+        pauta: pauta
       }]);
 
     if (errInsert) {
@@ -272,7 +363,7 @@ document.addEventListener('DOMContentLoaded', () => {
       .eq('id', agendaId);
 
     alert('Agendamento confirmado com sucesso!');
-    loadAgendasDisponiveis();
+    document.getElementById('modalAgendaCidadao').style.display = 'none';
   }
   // --- Fim Agenda Logic ---
 
@@ -335,18 +426,22 @@ document.addEventListener('DOMContentLoaded', () => {
       btnSubmitQuickForm.disabled = true;
 
       try {
+        const titleStr = text;
+        const secretariaStr = quickFormType.value === 'Duvida' ? quickSecretaria.value : 'Governo';
+        const user = session;
+
+        const report = {
+          title: `${quickFormType.value} - App Cidadão`,
+          secretaria: secretariaStr,
+          description: titleStr,
+          status: 'Aberto',
+          tipo: quickFormType.value,
+          user_id: user.id
+        };
+
         const { error } = await supabase
           .from('reports_paracuru')
-          .insert([
-            {
-              tipo: quickFormType.value,
-              title: text,
-              secretaria: quickFormType.value === 'Duvida' ? quickSecretaria.value : 'Governo',
-              description: quickFormType.value + ' enviada via App Cidadão.',
-              status: 'Aberto',
-              user_id: session.id
-            }
-          ]);
+          .insert([report]);
 
         if (error) throw error;
 
@@ -385,13 +480,51 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 
   document.querySelectorAll('.next-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
+    btn.addEventListener('click', async (e) => {
       // Basic validation for Step 1
       if (currentStep === 1) {
         const title = document.getElementById('title').value;
-        const secretaria = document.getElementById('secretaria').value;
-        if (!title || !secretaria) {
-          alert('Preencha os campos obrigatórios primeiro.');
+        const description = document.getElementById('description').value;
+        const secretariaInput = document.getElementById('secretaria');
+        
+        if (!title) {
+          alert('Preencha o título do problema primeiro.');
+          return;
+        }
+
+        // AI Triagem
+        if (!secretariaInput.value && description) {
+          const originalText = e.target.textContent;
+          e.target.textContent = 'Aguarde (IA Analisando)...';
+          e.target.disabled = true;
+
+          try {
+            const { data, error } = await supabase.functions.invoke('ai_triagem', {
+              body: { title, description }
+            });
+            
+            if (!error && data && data.secretaria) {
+               secretariaInput.value = data.secretaria;
+               secretariaInput.dispatchEvent(new Event('change')); // load subcategories
+               setTimeout(() => {
+                  const subInput = document.getElementById('subcategory');
+                  if (data.subcategoria) {
+                     Array.from(subInput.options).forEach(opt => {
+                       if(opt.value === data.subcategoria) subInput.value = data.subcategoria;
+                     });
+                  }
+               }, 100);
+            }
+          } catch(err) {
+             console.log('AI Triagem falhou (talvez a edge function não esteja publicada), usando fallback manual', err);
+          } finally {
+             e.target.textContent = originalText;
+             e.target.disabled = false;
+          }
+        }
+        
+        if (!secretariaInput.value) {
+          alert('Preencha a secretaria.');
           return;
         }
       } else if (currentStep === 2) {
@@ -548,6 +681,30 @@ document.addEventListener('DOMContentLoaded', () => {
     submitBtn.disabled = true;
 
     try {
+      if (navigator.onLine) {
+        submitBtn.textContent = 'IA Analisando Foto...';
+        try {
+          const { data: aiData, error: aiError } = await supabase.functions.invoke('ai_analise_imagem', {
+            body: { base64Image: currentPhotoData, description: document.getElementById('description').value }
+          });
+          if (aiError) throw aiError;
+          if (aiData && aiData.error) throw new Error(aiData.error);
+
+          if (aiData) {
+            if (aiData.valida === false) {
+              alert(`Foto recusada pela Inteligência Artificial:\n${aiData.motivo}`);
+              submitBtn.textContent = originalText;
+              submitBtn.disabled = false;
+              return;
+            }
+          }
+        } catch(err) {
+          console.warn('AI Análise de Imagem falhou ou está fora do ar, prosseguindo com o envio normal:', err);
+          // Não damos return aqui. O código segue silenciosamente.
+        }
+        submitBtn.textContent = 'Enviando Relato...';
+      }
+
       if (!navigator.onLine) {
         // Modo offline
         const offlineData = {

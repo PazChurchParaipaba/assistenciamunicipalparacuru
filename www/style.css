@@ -1,10 +1,10 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap');
 
 :root {
-  --primary: #f97316;
-  --primary-hover: #ea580c;
-  --secondary: #8b5cf6;
-  --bg-gradient: url('bg-paracuru.png') center/cover fixed; 
+  --primary: #006494;
+  --primary-hover: #004b70;
+  --secondary: #009688;
+  --bg-gradient: url('bg-novo169.png') center/cover fixed; 
   --card-bg: rgba(255, 255, 255, 0.75);
   --bg-card: var(--card-bg); /* Alias para corrigir o erro */
   --text-main: #1f2937;
@@ -18,10 +18,10 @@
 }
 
 [data-theme="dark"] {
-  --primary: #fdba74;
-  --primary-hover: #fb923c;
-  --secondary: #a78bfa;
-  --bg-gradient: linear-gradient(rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8)), url('bg-paracuru.png') center/cover fixed;
+  --primary: #38bdf8;
+  --primary-hover: #0284c7;
+  --secondary: #2dd4bf;
+  --bg-gradient: linear-gradient(rgba(15, 23, 42, 0.8), rgba(30, 41, 59, 0.8)), url('bg-novo169.png') center/cover fixed;
   --card-bg: rgba(30, 41, 59, 0.75);
   --bg-card: var(--card-bg);
   --text-main: #f8fafc;

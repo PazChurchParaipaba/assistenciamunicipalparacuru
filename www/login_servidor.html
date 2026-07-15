@@ -64,7 +64,7 @@
         <input type="password" id="password" required placeholder="••••••••" style="width: 100%; padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color); background: transparent; color: var(--text-main);">
       </div>
 
-      <div id="groupSecretaria" class="form-group" style="margin-bottom: 2rem; display: none;">
+      <div id="groupSecretaria" class="form-group" style="margin-bottom: 1.5rem; display: none;">
         <label for="secretaria" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Secretaria</label>
         <select id="secretaria" style="width: 100%; padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
           <option value="" disabled selected>Selecione...</option>
@@ -78,6 +78,14 @@
           <option value="Assistência Social">Assistência Social</option>
           <option value="Turismo">Turismo</option>
           <option value="Governo">Governo</option>
+        </select>
+      </div>
+
+      <div id="groupPerfil" class="form-group" style="margin-bottom: 2rem; display: none;">
+        <label for="perfil" style="display: block; margin-bottom: 0.5rem; font-weight: 600;">Tipo de Acesso</label>
+        <select id="perfil" style="width: 100%; padding: 1rem; border-radius: 12px; border: 1px solid var(--border-color); background: var(--card-bg); color: var(--text-main);">
+          <option value="admin">Gestor / Secretaria (Dashboard Completo)</option>
+          <option value="tecnico">Técnico em Campo (Painel Restrito)</option>
         </select>
       </div>
 

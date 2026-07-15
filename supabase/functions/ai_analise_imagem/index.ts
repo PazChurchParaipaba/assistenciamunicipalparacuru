@@ -48,7 +48,7 @@ Responda APENAS um JSON no seguinte formato:
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'nvidia/nemotron-nano-12b-v2-vl:free',
+        model: 'google/gemini-2.0-flash-lite-preview-02-05:free',
         messages: [
           {
             role: 'user',

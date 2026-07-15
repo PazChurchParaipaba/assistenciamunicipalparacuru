@@ -1,12 +1,19 @@
 import { supabase } from './supabaseClient.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
-  // Se já estiver logado como servidor (usando localStorage como no cidadão)
-  const sessionData = localStorage.getItem('servidorSession');
-  if (sessionData) {
+  // Se já estiver logado como técnico ou admin, redirecionar se o hash da url pedir ou apenas remover o redirecionamento automático absoluto
+  const adminSession = localStorage.getItem('adminSession');
+  const tecnicoSession = localStorage.getItem('tecnicoSession');
+  
+  if (adminSession && !tecnicoSession) {
     window.location.href = 'painel.html';
     return;
+  } else if (tecnicoSession && !adminSession) {
+    window.location.href = 'tecnico.html';
+    return;
   }
+  // Se ambos existirem, o usuário fica na tela de login e pode escolher o que logar novamente,
+  // ou apenas vai direto pra URL desejada.
 
   const loginForm = document.getElementById('loginForm');
   const errorMsg = document.getElementById('errorMsg');
@@ -26,13 +33,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     if(isLoginMode) {
       groupNome.style.display = 'none';
       groupSecretaria.style.display = 'none';
-      if(groupPerfil) groupPerfil.style.display = 'none';
+      groupPerfil.style.display = 'none';
       submitBtn.textContent = 'Entrar no Painel';
       toggleLink.textContent = 'Novo servidor? Solicitar acesso';
     } else {
       groupNome.style.display = 'block';
       groupSecretaria.style.display = 'block';
-      if(groupPerfil) groupPerfil.style.display = 'block';
+      groupPerfil.style.display = 'block';
       submitBtn.textContent = 'Cadastrar Servidor';
       toggleLink.textContent = 'Já tem acesso? Entrar';
     }
@@ -46,8 +53,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     const password = document.getElementById('password').value.trim();
     const nome = document.getElementById('nome').value.trim();
     const secretaria = document.getElementById('secretaria').value;
-    const perfilObj = document.getElementById('perfil');
-    const perfil = perfilObj ? perfilObj.value : 'admin';
+    const perfilSelecionado = document.getElementById('perfil') ? document.getElementById('perfil').value : 'admin';
 
     if (!email || !password || (!isLoginMode && (!nome || !secretaria))) {
       errorMsg.textContent = 'Erro: Preencha todos os campos obrigatórios.';
@@ -74,17 +80,20 @@ document.addEventListener('DOMContentLoaded', async () => {
         submitBtn.disabled = false;
       } else {
         // Salva a sessão no localStorage incluindo a secretaria e perfil
-        localStorage.setItem('servidorSession', JSON.stringify({ 
+        const perfil = data.perfil || 'admin';
+        const sessionPayload = JSON.stringify({ 
           id: data.id, 
           email: data.email, 
           nome: data.nome_completo,
           secretaria: data.secretaria,
-          perfil: data.perfil || 'admin'
-        }));
+          perfil: perfil
+        });
         
-        if (data.perfil === 'tecnico') {
+        if (perfil === 'tecnico') {
+          localStorage.setItem('tecnicoSession', sessionPayload);
           window.location.href = 'tecnico.html';
         } else {
+          localStorage.setItem('adminSession', sessionPayload);
           window.location.href = 'painel.html';
         }
       }
@@ -96,7 +105,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           email: email,
           password: password,
           secretaria: secretaria,
-          perfil: perfil
+          perfil: perfilSelecionado
         })
         .select()
         .single();
@@ -107,17 +116,22 @@ document.addEventListener('DOMContentLoaded', async () => {
         submitBtn.textContent = 'Cadastrar Servidor';
         submitBtn.disabled = false;
       } else {
-        localStorage.setItem('servidorSession', JSON.stringify({ 
+        const perfil = data.perfil || 'admin';
+        const sessionPayload = JSON.stringify({ 
           id: data.id, 
           email: data.email, 
           nome: data.nome_completo,
           secretaria: data.secretaria,
-          perfil: data.perfil || 'admin'
-        }));
+          perfil: perfil
+        });
         
-        if (data.perfil === 'tecnico') {
+        if (perfil === 'tecnico') {
+          localStorage.setItem('tecnicoSession', sessionPayload);
+          alert('Cadastro realizado! Bem-vindo(a).');
           window.location.href = 'tecnico.html';
         } else {
+          localStorage.setItem('adminSession', sessionPayload);
+          alert('Cadastro realizado! Bem-vindo(a).');
           window.location.href = 'painel.html';
         }
       }

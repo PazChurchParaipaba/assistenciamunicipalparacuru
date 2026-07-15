@@ -8,6 +8,12 @@ document.addEventListener('DOMContentLoaded', async () => {
     return;
   }
   const session = JSON.parse(sessionData);
+  
+  // Se for técnico, não pode ver o painel admin
+  if (session.perfil === 'tecnico') {
+    window.location.href = 'tecnico.html';
+    return;
+  }
 
   // Lógica de Logout
   const btnLogout = document.getElementById('btnLogout');

@@ -2,18 +2,24 @@ import { supabase } from './supabaseClient.js';
 
 document.addEventListener('DOMContentLoaded', async () => {
   // Autenticação: Verificar se o servidor está logado
-  const sessionData = localStorage.getItem('servidorSession');
+  const sessionData = localStorage.getItem('adminSession');
   if (!sessionData) {
     window.location.href = 'login_servidor.html';
     return;
   }
   const session = JSON.parse(sessionData);
+  
+  // Se for técnico, não pode ver o painel admin
+  if (session.perfil === 'tecnico') {
+    window.location.href = 'tecnico.html';
+    return;
+  }
 
   // Lógica de Logout
   const btnLogout = document.getElementById('btnLogout');
   if (btnLogout) {
     btnLogout.addEventListener('click', async () => {
-      localStorage.removeItem('servidorSession');
+      localStorage.removeItem('adminSession');
       window.location.href = 'login_servidor.html';
     });
   }
@@ -81,6 +87,15 @@ document.addEventListener('DOMContentLoaded', async () => {
     if (error) {
       console.error('Erro ao buscar relatos:', error);
       return;
+    }
+    
+    // Busca os nomes dos perfis
+    const { data: profilesData } = await supabase.from('profiles').select('id, nome_completo, whatsapp');
+    window.profileMap = {};
+    if (profilesData) {
+      profilesData.forEach(p => {
+        window.profileMap[p.id] = { nome: p.nome_completo, whatsapp: p.whatsapp };
+      });
     }
     
     // Populate Bairro filter with unique values
@@ -252,17 +267,29 @@ document.addEventListener('DOMContentLoaded', async () => {
         ? `<img src="${report.photo}" class="card-img" alt="Foto" style="pointer-events: none;">` 
         : `<div class="card-img" style="background: var(--border-color); display: flex; align-items: center; justify-content: center; color: var(--text-muted); font-weight: bold; pointer-events: none;">Sem Foto</div>`;
 
+      // Lógica para saber se há mensagem não respondida do cidadão
+      let chatNotificationHtml = '';
+      if (report.chat_history && report.chat_history.length > 0) {
+        const lastMsg = report.chat_history[report.chat_history.length - 1];
+        if (lastMsg.sender === 'cidadao') {
+          chatNotificationHtml = `<div style="position: absolute; top: -10px; right: -10px; background: var(--danger); color: white; padding: 0.3rem 0.6rem; border-radius: 99px; font-size: 0.75rem; font-weight: bold; box-shadow: 0 4px 6px rgba(0,0,0,0.1); z-index: 10; animation: pulse 2s infinite;">💬 Nova Mensagem</div>`;
+        } else {
+          chatNotificationHtml = `<div style="position: absolute; top: 10px; right: 10px; background: rgba(0,0,0,0.5); color: white; padding: 0.2rem 0.5rem; border-radius: 8px; font-size: 0.7rem; z-index: 10;">💬 ${report.chat_history.length}</div>`;
+        }
+      }
+
       const card = document.createElement('div');
       card.className = 'card';
-      card.style.position = 'relative';
+      card.style.position = 'relative'; // Para segurar o badge
       card.style.display = 'flex';
       card.style.flexDirection = 'column';
       card.style.height = '100%';
       card.innerHTML = `
-        <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes">
+        ${chatNotificationHtml}
+        <div style="position: relative; cursor: pointer;" data-action="view-details" data-id="${report.id}" title="Clique para ver detalhes do chat">
           ${cardImgHtml}
           <div style="position: absolute; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.3); display: flex; align-items: center; justify-content: center; opacity: 0; transition: opacity 0.2s;" onmouseover="this.style.opacity=1" onmouseout="this.style.opacity=0">
-            <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Detalhes</span>
+            <span style="color: white; font-weight: bold; background: rgba(0,0,0,0.6); padding: 0.5rem 1rem; border-radius: 99px;">Ver Chat Completo</span>
           </div>
         </div>
         <div class="card-content" style="display: flex; flex-direction: column; flex: 1;">
@@ -271,9 +298,10 @@ document.addEventListener('DOMContentLoaded', async () => {
             <span style="font-size: 0.8rem; color: var(--text-muted);">${date}</span>
           </div>
           <h3 style="margin-bottom: 0.5rem; font-size: 1.1rem;">${report.title}</h3>
+          ${report.tipo === 'Problema' ? `
           <p style="font-size: 0.85rem; color: var(--text-main); margin-bottom: 0.5rem; font-weight: 500;">
             📍 ${report.endereco || 'Endereço não informado'} ${report.bairro ? ' - ' + report.bairro : ''}
-          </p>
+          </p>` : ''}
           <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">
             <b>${report.secretaria}</b> ${report.subcategory ? `> ${report.subcategory}` : ''}<br>
             ${report.description}
@@ -295,10 +323,65 @@ document.addEventListener('DOMContentLoaded', async () => {
       reportsGrid.appendChild(card);
     });
 
-    // Add event listeners to new selects
-    document.querySelectorAll('.status-update').forEach(select => {
-      select.addEventListener('change', (e) => {
-        updateStatus(e.target.getAttribute('data-id'), e.target.value);
+    // Add event listeners to quick reply buttons
+    document.querySelectorAll('.quick-reply-btn').forEach(btn => {
+      btn.addEventListener('click', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const input = document.querySelector(`.quick-reply-input[data-id="${id}"]`);
+        const text = input.value.trim();
+        if (!text) return;
+        
+        const originalText = e.target.textContent;
+        e.target.textContent = 'Enviando...';
+        e.target.disabled = true;
+
+        const report = filtered.find(r => r.id === id);
+        const chatHistory = report.chat_history || [];
+        chatHistory.push({
+          sender: 'secretaria',
+          text: text,
+          date: new Date().toISOString()
+        });
+
+        const sessionData = localStorage.getItem('adminSession');
+        const sessionObj = sessionData ? JSON.parse(sessionData) : null;
+        const serverEmail = sessionObj ? sessionObj.email : 'Servidor';
+        
+        let history = report.action_history || [];
+        history.push({
+          date: new Date().toISOString(),
+          action: 'Enviou uma mensagem para o cidadão',
+          user: serverEmail
+        });
+
+        const statusSelect = document.querySelector(`.quick-status-select[data-id="${id}"]`);
+        const newStatus = statusSelect ? statusSelect.value : report.status;
+
+        const { error } = await supabase
+          .from('reports_paracuru')
+          .update({ chat_history: chatHistory, action_history: history, status: newStatus })
+          .eq('id', id);
+
+        if (error) {
+          alert('Erro ao enviar mensagem.');
+          e.target.textContent = originalText;
+          e.target.disabled = false;
+        } else {
+          input.value = '';
+          e.target.textContent = 'Enviado!';
+          setTimeout(() => {
+            loadDashboard(); // Atualiza a tela
+          }, 1000);
+        }
+      });
+    });
+
+    // Add event listeners to quick status select
+    document.querySelectorAll('.quick-status-select').forEach(select => {
+      select.addEventListener('change', async (e) => {
+        const id = e.target.getAttribute('data-id');
+        const newStatus = e.target.value;
+        updateStatus(id, newStatus);
       });
     });
 
@@ -329,35 +412,92 @@ document.addEventListener('DOMContentLoaded', async () => {
     const statusEl = document.getElementById('modalStatus');
     statusEl.textContent = report.status;
     const statusColor = report.status === 'Aberto' ? 'var(--danger)' : (report.status === 'Resolvido' ? 'var(--secondary)' : 'var(--warning)');
-    statusEl.style.background = `${statusColor}20`;
-    statusEl.style.color = statusColor;
+    const date = new Date(report.created_at).toLocaleString('pt-BR');
+    
+    // Obtém os dados do cidadão do mapa que criamos no loadDashboard
+    const citizen = (window.profileMap && window.profileMap[report.user_id]) 
+      ? window.profileMap[report.user_id] 
+      : { nome: 'Cidadão Desconhecido', whatsapp: '' };
+      
+    // Se a descrição for genérica (criada pelo app antigo), usamos o título como a mensagem real
+    let displayDescription = report.description;
+    if (report.description.includes('enviada via App Cidadão') && report.title.length > 20) {
+       displayDescription = report.title;
+    } else if (report.tipo === 'Duvida' || report.tipo === 'Feedback' || report.tipo === 'Ouvidoria') {
+       // Para novos reports gerados pelo app atualizado, a descrição correta já vem no report.description!
+       // Mas se o title contiver texto longo e a description estiver genérica, mesclamos.
+       if (report.title && !report.title.includes('App Cidadão') && report.description.includes('App Cidadão')) {
+          displayDescription = report.title;
+       }
+    }
 
-    document.getElementById('modalMeta').textContent = `${new Date(report.created_at).toLocaleDateString('pt-BR')} - ${report.secretaria}`;
-    const subEl = document.getElementById('modalSubcategory');
-    if (subEl) subEl.textContent = report.subcategory ? `> ${report.subcategory}` : '';
-
-    const modalPhoto = document.getElementById('modalPhoto');
-    if (report.photo) {
-      modalPhoto.src = report.photo;
-      modalPhoto.style.display = 'block';
+    document.getElementById('modalTitle').textContent = report.title.includes('App Cidadão') ? report.tipo : report.title;
+    const isProblema = report.tipo === 'Problema';
+    const statusElm = document.getElementById('modalStatus');
+    statusElm.textContent = report.status;
+    statusElm.className = `status-badge status-${report.status.replace(' ', '').toLowerCase()}`;
+    statusElm.style.display = isProblema ? 'inline-block' : 'none';
+    
+    // Trocamos o modalMeta para incluir o nome do cidadão
+    document.getElementById('modalMeta').innerHTML = `${date} • ${report.secretaria} <span id="modalSubcategory" style="font-weight: 600; color: var(--primary);"></span><br><br><span style="background: rgba(79, 70, 229, 0.1); color: var(--primary); padding: 0.3rem 0.6rem; border-radius: 6px; font-weight: bold; font-size: 0.85rem;">👤 Enviado por: ${citizen.nome} ${citizen.whatsapp ? '(' + citizen.whatsapp + ')' : ''}</span>`;
+    
+    if (report.subcategory) {
+      document.getElementById('modalSubcategory').textContent = ` > ${report.subcategory}`;
     } else {
-      modalPhoto.style.display = 'none';
+      document.getElementById('modalSubcategory').textContent = '';
     }
     
-    document.getElementById('modalDescription').textContent = report.description;
+    const photoEl = document.getElementById('modalPhoto');
+    if (report.photo) {
+      photoEl.src = report.photo;
+      photoEl.style.display = 'block';
+    } else {
+      photoEl.style.display = 'none';
+    }
+    
+    document.getElementById('modalDescription').textContent = displayDescription;
     document.getElementById('modalLocationText').textContent = `${report.endereco || 'Rua não informada'}, ${report.bairro || 'Bairro não informado'}`;
-    document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
     
-    document.getElementById('modalResponsavel').value = report.responsavel || '';
-    
-    const modalTecnico = document.getElementById('modalTecnico');
-    if (modalTecnico) {
-      modalTecnico.value = report.tecnico_id || '';
+    if (report.location_lat != null && report.location_lng != null) {
+      document.getElementById('modalLocation').textContent = `Coordenadas: Lat ${report.location_lat.toFixed(5)}, Lng ${report.location_lng.toFixed(5)}`;
+    } else {
+      document.getElementById('modalLocation').textContent = 'Coordenadas não fornecidas';
     }
+    
+
+    const locationContainer = document.getElementById('modalLocationContainer');
+    if (locationContainer) {
+      locationContainer.style.display = isProblema ? 'block' : 'none';
+    }
+
+    const descricaoContainer = document.getElementById('modalDescricaoContainer');
+    if (descricaoContainer) {
+      descricaoContainer.style.display = isProblema ? 'block' : 'none';
+    }
+
+    const gestaoContainer = document.getElementById('modalGestaoContainer');
+    if (gestaoContainer) {
+      gestaoContainer.style.display = isProblema ? 'block' : 'none';
+    }
+    
+    const historyContainer = document.getElementById('modalHistoryContainer');
+    if (historyContainer) {
+      historyContainer.style.display = isProblema ? 'block' : 'none';
+    }
+    
+    document.getElementById('modalResponsavel').value = report.tecnico_id || '';
     document.getElementById('modalNotas').value = report.notas_internas || '';
     
     if (typeof window.renderChat === 'function') {
-      window.renderChat(report.chat_history || []);
+      let chatToRender = report.chat_history ? [...report.chat_history] : [];
+      if (!isProblema && displayDescription) {
+        chatToRender.unshift({
+          sender: 'cidadao',
+          text: displayDescription,
+          date: report.created_at
+        });
+      }
+      window.renderChat(chatToRender);
     }
     
     const historyList = document.getElementById('modalHistory');
@@ -426,7 +566,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   async function loadResponsaveisForSelect() {
     if (!modalResponsavelSelect) return;
-    let query = supabase.from('responsaveis').select('*').order('nome');
+    let query = supabase.from('servidores').select('*').eq('perfil', 'tecnico').order('nome_completo');
     if (session.secretaria !== 'Todas') {
       query = query.eq('secretaria', session.secretaria);
     }
@@ -437,30 +577,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     modalResponsavelSelect.innerHTML = '<option value="">Não atribuído</option>';
     responsaveisList.forEach(resp => {
       const opt = document.createElement('option');
-      opt.value = resp.nome;
-      opt.textContent = `${resp.nome} (${resp.secretaria})`;
+      opt.value = resp.id;
+      opt.dataset.nome = resp.nome_completo;
+      opt.textContent = `${resp.nome_completo} (${resp.secretaria})`;
       modalResponsavelSelect.appendChild(opt);
     });
+    // Tentamos setar o valor que estava antes. (Se for o id do técnico, vai funcionar).
     modalResponsavelSelect.value = currentVal;
-    
-    // --- LOAD TECNICOS (Novo) ---
-    const modalTecnicoSelect = document.getElementById('modalTecnico');
-    if (modalTecnicoSelect) {
-      let qTecnicos = supabase.from('servidores').select('*').eq('perfil', 'tecnico').order('nome_completo');
-      if (session.secretaria !== 'Todas') {
-        qTecnicos = qTecnicos.eq('secretaria', session.secretaria);
-      }
-      const { data: tecnicos } = await qTecnicos;
-      const currentTecnicoVal = modalTecnicoSelect.value;
-      modalTecnicoSelect.innerHTML = '<option value="">Não atribuído</option>';
-      (tecnicos || []).forEach(tec => {
-        const opt = document.createElement('option');
-        opt.value = tec.id;
-        opt.textContent = `${tec.nome_completo} (${tec.secretaria})`;
-        modalTecnicoSelect.appendChild(opt);
-      });
-      modalTecnicoSelect.value = currentTecnicoVal;
-    }
   }
 
   if (btnAddResponsavel) {
@@ -496,15 +619,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSaveDetails.addEventListener('click', async () => {
       if (!currentReportId) return;
       
-      const responsavel = document.getElementById('modalResponsavel').value;
+      const selectEl = document.getElementById('modalResponsavel');
+      const tecnico_id = selectEl.value || null;
+      const responsavel = tecnico_id ? selectEl.options[selectEl.selectedIndex].dataset.nome : null;
       const notas_internas = document.getElementById('modalNotas').value;
-      
-      const modalTecnicoSelect = document.getElementById('modalTecnico');
-      const tecnico_id = modalTecnicoSelect ? (modalTecnicoSelect.value || null) : null;
 
       const { error } = await supabase
         .from('reports_paracuru')
-        .update({ responsavel, notas_internas, tecnico_id })
+        .update({ tecnico_id, responsavel, notas_internas })
         .eq('id', currentReportId);
 
       if (error) {
@@ -514,9 +636,9 @@ document.addEventListener('DOMContentLoaded', async () => {
         // Update local data
         const report = latestReports.find(r => r.id === currentReportId);
         if (report) {
+          report.tecnico_id = tecnico_id;
           report.responsavel = responsavel;
           report.notas_internas = notas_internas;
-          report.tecnico_id = tecnico_id;
         }
       }
     });
@@ -578,7 +700,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     }
 
     chatArray.forEach(msg => {
-      const isServidor = msg.sender === 'secretaria';
+      const isServidor = msg.sender === 'secretaria' || msg.sender === 'tecnico';
       const align = isServidor ? 'flex-end' : 'flex-start';
       const bg = isServidor ? 'var(--primary)' : 'var(--bg-card)';
       const color = isServidor ? '#fff' : 'var(--text)';
@@ -586,9 +708,15 @@ document.addEventListener('DOMContentLoaded', async () => {
       
       const d = new Date(msg.date).toLocaleString('pt-BR', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit' });
 
+      let senderName = msg.senderName || 'Cidadão';
+      if (!msg.senderName) {
+        if (msg.sender === 'secretaria') senderName = 'Secretaria';
+        else if (msg.sender === 'tecnico') senderName = 'Técnico';
+      }
+
       chatContainer.innerHTML += `
         <div style="align-self: ${align}; background: ${bg}; color: ${color}; border: ${border}; padding: 0.5rem 1rem; border-radius: 8px; max-width: 80%;">
-          <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.2rem;">${isServidor ? 'Secretaria' : 'Cidadão'} • ${d}</div>
+          <div style="font-size: 0.75rem; opacity: 0.8; margin-bottom: 0.2rem;">${senderName} • ${d}</div>
           <div>${msg.text}</div>
         </div>
       `;
@@ -606,6 +734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const newMsg = {
         sender: 'secretaria',
+        senderName: session.secretaria === 'Todas' ? 'Secretaria de Governo' : session.secretaria,
         text: text,
         date: new Date().toISOString()
       };
@@ -629,7 +758,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   }
 
   async function updateStatus(id, newStatus) {
-    const sessionData = localStorage.getItem('servidorSession');
+    const sessionData = localStorage.getItem('adminSession');
     const sessionObj = sessionData ? JSON.parse(sessionData) : null;
     const serverEmail = sessionObj ? sessionObj.email : 'Servidor Desconhecido';
     
@@ -719,6 +848,43 @@ document.addEventListener('DOMContentLoaded', async () => {
     });
   }
 
+  // IA Resumo Logic
+  const btnResumoIA = document.getElementById('btnResumoIA');
+  const iaResumoModal = document.getElementById('iaResumoModal');
+  const closeIaResumoModal = document.getElementById('closeIaResumoModal');
+  const iaResumoContent = document.getElementById('iaResumoContent');
+
+  if (btnResumoIA && iaResumoModal) {
+    btnResumoIA.addEventListener('click', async () => {
+      iaResumoModal.style.display = 'flex';
+      iaResumoContent.innerHTML = 'Gerando resumo inteligente com base nos últimos dados... ⏳<br><small style="color: var(--text-muted)">Isso pode levar alguns segundos.</small>';
+      
+      try {
+        const { data, error } = await supabase.functions.invoke('ai_resumo_gerencial', {
+          body: { reports: latestReports }
+        });
+        
+        if (error) throw error;
+        if (data && data.error) throw new Error(typeof data.error === 'string' ? data.error : JSON.stringify(data.error));
+        
+        // Formatar Markdown básico para HTML
+        let htmlContent = (data.resumo || 'Nenhum resumo gerado.')
+           .replace(/\n/g, '<br>')
+           .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+           .replace(/\*(.*?)\*/g, '<em>$1</em>');
+           
+        iaResumoContent.innerHTML = htmlContent;
+      } catch(err) {
+        console.error('Erro na IA:', err);
+        iaResumoContent.innerHTML = '<span style="color: var(--danger);">Falha ao gerar o resumo. A Inteligência Artificial pode não estar configurada no momento.</span>';
+      }
+    });
+    
+    closeIaResumoModal.addEventListener('click', () => {
+      iaResumoModal.style.display = 'none';
+    });
+  }
+
   // Clear Data
   btnClear.addEventListener('click', async () => {
     if(confirm('Isso apagará TODOS os dados do sistema. Tem certeza?')) {
@@ -783,9 +949,7 @@ document.addEventListener('DOMContentLoaded', async () => {
           const statusEl = document.getElementById('modalStatus');
           if (statusEl) {
             statusEl.textContent = payload.new.status;
-            const statusColor = payload.new.status === 'Aberto' ? 'var(--danger)' : (payload.new.status === 'Resolvido' ? 'var(--secondary)' : 'var(--warning)');
-            statusEl.style.background = `${statusColor}20`;
-            statusEl.style.color = statusColor;
+            statusEl.className = `status-badge status-${payload.new.status.replace(' ', '').toLowerCase()}`;
           }
           
           // Atualiza o chat
@@ -812,7 +976,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const closeViewAgendamentosModal = document.getElementById('closeViewAgendamentosModal');
   
   if (session && session.email === 'admin@paracuru.ce.gov.br') {
-    if (btnManageAgenda) btnManageAgenda.style.display = 'inline-block';
+    // if (btnManageAgenda) btnManageAgenda.style.display = 'inline-block';
   }
 
   if (btnManageAgenda) {
@@ -838,18 +1002,26 @@ document.addEventListener('DOMContentLoaded', async () => {
   if (btnAddAgenda) {
     btnAddAgenda.addEventListener('click', async () => {
       const dataStr = document.getElementById('newAgendaDate').value;
-      const vagas = parseInt(document.getElementById('newAgendaVagas').value);
-      const prog = document.getElementById('newAgendaProg').value.trim();
+      const horariosStr = document.getElementById('newAgendaHorarios').value.trim();
 
-      if (!dataStr || isNaN(vagas) || !prog) {
-        alert('Preencha todos os campos!');
+      if (!dataStr || !horariosStr) {
+        alert('Preencha a data e os horários!');
+        return;
+      }
+
+      // Calculate vagas from comma separated string
+      const horariosArr = horariosStr.split(',').map(h => h.trim()).filter(h => h);
+      const vagas = horariosArr.length;
+
+      if (vagas === 0) {
+        alert('Adicione pelo menos um horário válido.');
         return;
       }
 
       const { error } = await supabase.from('agendas_secretario').insert([{
         data: dataStr,
         vagas_totais: vagas,
-        programacao: prog,
+        horarios: horariosStr,
         vagas_ocupadas: 0
       }]);
 
@@ -858,7 +1030,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         console.error(error);
       } else {
         document.getElementById('newAgendaDate').value = '';
-        document.getElementById('newAgendaProg').value = '';
+        document.getElementById('newAgendaHorarios').value = '';
         loadAgendasAdmin();
       }
     });
@@ -885,7 +1057,6 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     listEl.innerHTML = '';
     data.forEach(item => {
-      // Create date format dd/mm/yyyy considering timezone issues if any, we just split the string
       let dStr = item.data;
       if(dStr.includes('T')) dStr = dStr.split('T')[0];
       const parts = dStr.split('-');
@@ -903,7 +1074,7 @@ document.addEventListener('DOMContentLoaded', async () => {
             ${item.vagas_ocupadas} / ${item.vagas_totais} vagas
           </span>
         </div>
-        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;">${item.programacao}</p>
+        <p style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 1rem;"><b>Horários:</b> ${item.horarios || 'Não definido'}</p>
         <button class="btn btn-secondary btn-view-inscritos" data-id="${item.id}" data-date="${formattedDate}" style="width: 100%; font-size: 0.9rem; padding: 0.5rem;">Ver Inscritos</button>
       `;
       listEl.appendChild(div);
@@ -963,204 +1134,20 @@ document.addEventListener('DOMContentLoaded', async () => {
       li.style.borderRadius = '8px';
       li.style.background = 'var(--bg-main)';
       li.innerHTML = `
-        <div style="font-weight: bold; color: var(--text);">${p.nome_completo}</div>
-        <div style="font-size: 0.85rem; color: var(--text-muted);">WhatsApp: ${p.whatsapp}</div>
+        <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+          <div style="font-weight: bold; color: var(--text);">${p.nome_completo}</div>
+          <span style="background: var(--primary); color: white; padding: 0.1rem 0.5rem; border-radius: 4px; font-size: 0.8rem;">
+            ⏱️ ${ag.horario_escolhido || 'Não escolhido'}
+          </span>
+        </div>
+        <div style="font-size: 0.85rem; color: var(--text-muted); margin-bottom: 0.5rem;">WhatsApp: ${p.whatsapp}</div>
+        <div style="font-size: 0.9rem; color: var(--text); background: rgba(0,0,0,0.05); padding: 0.5rem; border-radius: 4px;">
+          <b>Pauta:</b> ${ag.pauta || 'Nenhuma pauta informada'}
+        </div>
       `;
       inscritosList.appendChild(li);
     });
   }
-
-  // --- MODO INSPEÇÃO AR ---
-  const btnARMode = document.getElementById('btnARMode');
-  const arContainer = document.getElementById('ar-container');
-  const arVideo = document.getElementById('ar-video');
-  const arCanvas = document.getElementById('ar-canvas');
-  const arBtnClose = document.getElementById('ar-btn-close');
-  const arStatusText = document.getElementById('ar-status-text');
-  
-  let arStream = null;
-  let arModel = null;
-  let arAnimationId = null;
-  let arWatchId = null;
-  let arCurrentLat = null;
-  let arCurrentLon = null;
-  let arCurrentHeading = 0;
-  
-  if (btnARMode) {
-    btnARMode.addEventListener('click', async () => {
-      arContainer.style.display = 'block';
-      arStatusText.textContent = 'Solicitando Câmera e GPS...';
-      
-      try {
-        // Iniciar Câmera Traseira
-        arStream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: 'environment' }
-        });
-        arVideo.srcObject = arStream;
-        
-        // Iniciar GPS
-        if (navigator.geolocation) {
-          arWatchId = navigator.geolocation.watchPosition((pos) => {
-            arCurrentLat = pos.coords.latitude;
-            arCurrentLon = pos.coords.longitude;
-          }, (err) => {
-            console.error('Erro de GPS', err);
-            arStatusText.textContent = 'Erro de GPS. Verifique permissões.';
-          }, { enableHighAccuracy: true });
-        }
-        
-        // Iniciar Bússola (Device Orientation)
-        window.addEventListener('deviceorientation', handleOrientation, true);
-        
-        arStatusText.textContent = 'Carregando IA (COCO-SSD)...';
-        
-        // Carregar Modelo
-        if (!arModel && window.cocoSsd) {
-          arModel = await cocoSsd.load();
-        }
-        
-        arStatusText.textContent = 'Modo AR Ativo! Apontando câmera...';
-        
-        // Ajustar Canvas
-        arVideo.onloadedmetadata = () => {
-          arCanvas.width = arVideo.videoWidth;
-          arCanvas.height = arVideo.videoHeight;
-          detectFrame();
-        };
-        
-      } catch (err) {
-        console.error('Erro ao iniciar AR', err);
-        arStatusText.textContent = 'Erro ao iniciar AR: ' + err.message;
-      }
-    });
-  }
-  
-  if (arBtnClose) {
-    arBtnClose.addEventListener('click', stopARMode);
-  }
-  
-  function stopARMode() {
-    arContainer.style.display = 'none';
-    if (arStream) {
-      arStream.getTracks().forEach(t => t.stop());
-      arStream = null;
-    }
-    if (arAnimationId) {
-      cancelAnimationFrame(arAnimationId);
-    }
-    if (arWatchId) {
-      navigator.geolocation.clearWatch(arWatchId);
-    }
-    window.removeEventListener('deviceorientation', handleOrientation, true);
-  }
-  
-  function handleOrientation(event) {
-    let heading = event.alpha; // Para android
-    if (event.webkitCompassHeading) {
-      heading = event.webkitCompassHeading;
-    } else if (heading !== null) {
-      heading = 360 - heading; 
-    }
-    arCurrentHeading = heading || 0;
-  }
-  
-  // Fórmula Haversine para calcular distância em metros
-  function getDistance(lat1, lon1, lat2, lon2) {
-    const R = 6371e3; // metres
-    const p1 = lat1 * Math.PI/180;
-    const p2 = lat2 * Math.PI/180;
-    const dp = (lat2-lat1) * Math.PI/180;
-    const dl = (lon2-lon1) * Math.PI/180;
-    const a = Math.sin(dp/2) * Math.sin(dp/2) +
-              Math.cos(p1) * Math.cos(p2) *
-              Math.sin(dl/2) * Math.sin(dl/2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-    return R * c;
-  }
-  
-  // Calcular ângulo entre duas coordenadas
-  function getBearing(startLat, startLng, destLat, destLng) {
-    startLat = startLat * Math.PI / 180;
-    startLng = startLng * Math.PI / 180;
-    destLat = destLat * Math.PI / 180;
-    destLng = destLng * Math.PI / 180;
-    
-    let y = Math.sin(destLng - startLng) * Math.cos(destLat);
-    let x = Math.cos(startLat) * Math.sin(destLat) -
-            Math.sin(startLat) * Math.cos(destLat) * Math.cos(destLng - startLng);
-    let brng = Math.atan2(y, x) * 180 / Math.PI;
-    return (brng + 360) % 360;
-  }
-  
-  function drawARMarkers(ctx) {
-    // Remover markers HTML antigos
-    document.querySelectorAll('.ar-marker').forEach(el => el.remove());
-    
-    if (!arCurrentLat || !arCurrentLon) return;
-    
-    // Usa latestReports (do escopo pai)
-    const nearbyReports = latestReports.filter(r => r.latitude && r.longitude && r.status !== 'Resolvido');
-    
-    const uiContainer = document.getElementById('ar-ui');
-    
-    nearbyReports.forEach(report => {
-      const dist = getDistance(arCurrentLat, arCurrentLon, report.latitude, report.longitude);
-      if (dist < 1000) { // dentro de 1000 metros
-        const bearing = getBearing(arCurrentLat, arCurrentLon, report.latitude, report.longitude);
-        
-        let angleDiff = bearing - arCurrentHeading;
-        if (angleDiff < -180) angleDiff += 360;
-        if (angleDiff > 180) angleDiff -= 360;
-        
-        if (Math.abs(angleDiff) < 45) {
-          const screenX = 50 + (angleDiff / 45) * 50; 
-          
-          const markerEl = document.createElement('div');
-          markerEl.className = 'ar-marker';
-          markerEl.textContent = `${report.tipo || 'Problema'} (${Math.round(dist)}m)`;
-          markerEl.style.left = `${screenX}%`;
-          markerEl.style.top = `${50 + (dist / 1000) * 20}%`;
-          
-          uiContainer.appendChild(markerEl);
-        }
-      }
-    });
-  }
-  
-  async function detectFrame() {
-    if (!arModel || arContainer.style.display === 'none') return;
-    
-    arCanvas.width = arVideo.videoWidth;
-    arCanvas.height = arVideo.videoHeight;
-    const ctx = arCanvas.getContext('2d');
-    ctx.clearRect(0, 0, arCanvas.width, arCanvas.height);
-    
-    try {
-      const predictions = await arModel.detect(arVideo);
-      
-      predictions.forEach(pred => {
-        if (pred.score > 0.5) {
-          const [x, y, width, height] = pred.bbox;
-          
-          ctx.strokeStyle = '#00FFFF';
-          ctx.lineWidth = 2;
-          ctx.strokeRect(x, y, width, height);
-          
-          ctx.fillStyle = '#00FFFF';
-          ctx.font = '16px Arial';
-          ctx.fillText(`${pred.class} (${Math.round(pred.score * 100)}%)`, x, y > 20 ? y - 5 : 15);
-        }
-      });
-      
-      drawARMarkers(ctx);
-      
-    } catch (e) {
-      console.warn("IA frame skip", e);
-    }
-    
-    arAnimationId = requestAnimationFrame(detectFrame);
-  }
-  // --- FIM MODO INSPEÇÃO AR ---
 
   // Init
   initMap();

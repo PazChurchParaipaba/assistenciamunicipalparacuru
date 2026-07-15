@@ -87,6 +87,72 @@
       font-weight: bold;
       cursor: pointer;
     }
+    
+    /* AR Mode Styles */
+    #ar-container {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      background: black;
+      z-index: 9999;
+    }
+    #ar-video {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+    }
+    #ar-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10000;
+    }
+    #ar-ui {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 10001;
+      display: flex;
+      flex-direction: column;
+      justify-content: space-between;
+      padding: 1rem;
+    }
+    .ar-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      pointer-events: auto;
+    }
+    .ar-status {
+      background: rgba(0,0,0,0.6);
+      color: white;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      backdrop-filter: blur(4px);
+    }
+    .ar-btn-close {
+      background: var(--danger);
+      color: white;
+      border: none;
+      padding: 0.5rem 1rem;
+      border-radius: 8px;
+      font-weight: bold;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+    }
   </style>
 </head>
 <body>
@@ -123,6 +189,42 @@
       <div class="ar-header">
         <div class="ar-status" id="ar-status-text">Carregando IA e Sensores...</div>
         <button id="ar-btn-close" class="ar-btn-close">Fechar AR</button>
+      </div>
+    </div>
+  </div>
+  <!-- Modal de Resolução (Câmera + IA) -->
+  <div id="resolve-modal" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.9); z-index: 10000; flex-direction: column; align-items: center; justify-content: center; color: white; padding: 1rem;">
+    <h3 style="margin-bottom: 1rem; color: #fff;">Validar Resolução do Problema</h3>
+    <p style="margin-bottom: 1rem; text-align: center; font-size: 0.9rem;" id="resolve-status-text">Tire uma foto do local consertado para a IA validar.</p>
+    
+    <div style="position: relative; width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; margin-bottom: 1.5rem; background: #000;">
+      <video id="resolve-video" autoplay playsinline style="width: 100%; display: block;"></video>
+      <canvas id="resolve-canvas" style="display: none;"></canvas>
+      <img id="resolve-preview" style="display: none; width: 100%;" />
+    </div>
+
+    <div style="display: flex; gap: 1rem; width: 100%; max-width: 400px;">
+      <button id="btn-take-photo" class="btn btn-primary" style="flex: 1; padding: 1rem; font-size: 1.2rem;">📸 Capturar Foto</button>
+      <button id="btn-send-validation" class="btn btn-secondary" style="flex: 1; display: none; background: #10b981; color: white; border: none;">✅ Enviar IA</button>
+    </div>
+    <div style="display: flex; gap: 1rem; width: 100%; max-width: 400px; margin-top: 1rem;">
+      <button id="btn-retake-photo" class="btn btn-secondary" style="flex: 1; display: none; border-color: white; color: white;">🔄 Refazer</button>
+      <button id="btn-close-resolve" class="btn btn-secondary" style="flex: 1; border-color: var(--danger); color: var(--danger);">Cancelar</button>
+    </div>
+  </div>
+
+  <!-- Modal de Chat do Técnico -->
+  <div id="tech-chat-modal" class="modal-overlay" style="display: none; position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; background: rgba(0,0,0,0.8); z-index: 10002; align-items: center; justify-content: center; padding: 1rem;">
+    <div style="background: var(--card-bg); width: 100%; max-width: 500px; border-radius: 12px; display: flex; flex-direction: column; overflow: hidden; border: 1px solid var(--border-color);">
+      <div style="padding: 1rem; border-bottom: 1px solid var(--border-color); display: flex; justify-content: space-between; align-items: center; background: var(--bg-main);">
+        <h3 style="margin: 0; color: var(--primary);">💬 Chat com o Cidadão</h3>
+        <button id="close-tech-chat" style="background: none; border: none; font-size: 1.5rem; color: var(--text-muted); cursor: pointer;">&times;</button>
+      </div>
+      <div id="tech-chat-container" style="padding: 1rem; flex: 1; min-height: 300px; max-height: 50vh; overflow-y: auto; display: flex; flex-direction: column; gap: 1rem; background: var(--bg-color);">
+      </div>
+      <div style="padding: 1rem; border-top: 1px solid var(--border-color); display: flex; gap: 0.5rem; background: var(--card-bg);">
+        <input type="text" id="tech-chat-input" placeholder="Digite sua mensagem..." style="flex: 1; padding: 0.8rem; border-radius: 8px; border: 1px solid var(--border-color); background: var(--bg-main); color: var(--text-main);">
+        <button id="btn-tech-send-chat" class="btn btn-primary" style="padding: 0 1rem; width: auto; font-weight: bold;">Enviar</button>
       </div>
     </div>
   </div>
